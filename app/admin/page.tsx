@@ -1,67 +1,16 @@
-import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase-server";
+import type { Website } from "@/lib/websites";
+import LogoutButton from "./components/LogoutButton";
+import WebsitesTable from "./components/WebsitesTable";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const { data: websites, error } = await supabase
-    .from("websites")
-    .select("*")
-    .order("id", { ascending: true });
-
-  if (error) {
-    return (
-      <main className="min-h-screen bg-zinc-950 p-8 text-white">
-        <h1 className="text-2xl font-bold">Painel Ember</h1>
-
-        <p className="mt-6 text-red-400">
-          Não foi possível carregar os domínios.
-        </p>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-zinc-950 p-8 text-white">
-      <header className="mb-8">
-        <p className="text-sm uppercase tracking-widest text-orange-400">
-          Administração
-        </p>
-
-        <h1 className="mt-2 text-3xl font-bold">Painel Ember</h1>
-
-        <p className="mt-2 text-zinc-400">
-          Gerencie os ativos cadastrados na plataforma.
-        </p>
-      </header>
-
-      <section className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="w-full text-left">
-          <thead className="bg-zinc-900 text-sm text-zinc-400">
-            <tr>
-              <th className="p-4">Domínio</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Valor</th>
-              <th className="p-4">Categoria</th>
-              <th className="p-4">Interessados</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {websites?.map((website) => (
-              <tr
-                key={website.id}
-                className="border-t border-zinc-800"
-              >
-                <td className="p-4 font-semibold">{website.domain}</td>
-                <td className="p-4">{website.status}</td>
-                <td className="p-4">{website.price}</td>
-                <td className="p-4">{website.category}</td>
-                <td className="p-4">{website.interested}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    </main>
-  );
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) redirect("/admin/login");
+  const { data, error } = await supabase.from("websites").select("id, domain, status, price, category, owner, country, created_at, interested").order("id", { ascending: true });
+  return <main className="min-h-screen bg-zinc-950 px-4 py-6 text-white sm:p-8"><header className="mx-auto mb-8 flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm uppercase tracking-widest text-orange-400">Administração</p><h1 className="mt-2 text-3xl font-bold">Painel Ember</h1><p className="mt-2 text-zinc-400">Gerencie os ativos cadastrados na plataforma.</p></div><div className="flex flex-wrap items-center gap-3"><Link href="/admin/new" className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-orange-400">Novo ativo</Link><LogoutButton /></div></header><div className="mx-auto max-w-7xl">{error ? <div role="alert" className="rounded-xl border border-red-900 bg-red-950 p-5 text-red-300"><p className="font-semibold">Não foi possível carregar os domínios.</p><p className="mt-1 text-sm">Atualize a página e tente novamente.</p></div> : <WebsitesTable websites={(data ?? []) as Website[]} />}</div></main>;
 }
