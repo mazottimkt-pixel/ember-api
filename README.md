@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ember API
 
-## Getting Started
+Aplicação administrativa e API pública do Produto #001 (HighStakes), construída com Next.js App Router, TypeScript, Tailwind CSS e Supabase.
 
-First, run the development server:
+## Funcionalidades
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- autenticação administrativa com Supabase Auth;
+- painel protegido em `/admin`;
+- criação, edição e exclusão confirmada de ativos digitais;
+- bloqueio de domínios duplicados;
+- busca por domínio, proprietário ou país;
+- filtros por status e categoria;
+- API pública por domínio em `/api/websites/[domain]`;
+- integração com a extensão Chrome Ember.
+
+## Arquitetura
+
+- `app/admin`: páginas administrativas, estados de carregamento/erro e Server Actions;
+- `app/api/websites/[domain]`: Route Handler público consumido pela extensão;
+- `lib/supabase-server.ts`: cliente Supabase para Server Components e Server Actions;
+- `lib/supabase-browser.ts`: cliente Supabase para autenticação no navegador;
+- `lib/websites.ts`: tipos, normalização e validação dos ativos.
+
+As páginas e mutações administrativas validam a sessão no servidor. A API pública utiliza a chave anônima e depende das policies RLS do Supabase.
+
+## Requisitos
+
+- Node.js compatível com Next.js 16;
+- projeto Supabase com Auth e tabela `public.websites`;
+- policies RLS descritas em [SECURITY.md](./SECURITY.md).
+
+## Variáveis de ambiente
+
+Crie um arquivo `.env.local` com:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Não utilize a chave `service_role` em variáveis `NEXT_PUBLIC_*`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Desenvolvimento
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+A aplicação local fica disponível em `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+## Validação
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Produção
 
-## Deploy on Vercel
+- aplicação: `https://ember-api-lemon.vercel.app`;
+- API: `https://ember-api-lemon.vercel.app/api/websites/{domain}`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+O deploy é realizado no Vercel. As duas variáveis de ambiente devem estar configuradas no ambiente de produção.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Segurança
+
+Consulte [SECURITY.md](./SECURITY.md) antes de criar usuários ou alterar policies. A versão atual considera todo usuário `authenticated` um administrador, portanto cadastro público e login anônimo devem permanecer desativados.
+
+## Release
+
+Consulte [RELEASE_NOTES_v1.0.1.md](./RELEASE_NOTES_v1.0.1.md) para o escopo e as limitações da versão atual.
