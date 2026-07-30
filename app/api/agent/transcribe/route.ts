@@ -7,7 +7,7 @@ const MAX_AUDIO_BYTES = Math.min(Math.max(Number(process.env.OPENAI_MAX_AUDIO_BY
 const allowed = new Set(["audio/webm", "audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a", "audio/ogg"]);
 
 export async function POST(request: Request) {
-  const { organizationId } = await requireMembership();
+  const { organizationId, supabase, user } = await requireMembership();
   const form = await request.formData();
   const audio = form.get("audio");
   if (!(audio instanceof File)) return NextResponse.json({ error: "Envie um arquivo de áudio." }, { status: 400 });
@@ -17,7 +17,9 @@ export async function POST(request: Request) {
     if (provider.name === "fallback") return NextResponse.json({ error: "Configure a OpenAI para transcrever áudios." }, { status: 503 });
     const transcript = await provider.transcribe(audio);
     if (!transcript || transcript.length > 8000) throw new Error("INVALID_TRANSCRIPT");
-    return NextResponse.json({ transcript, metrics: provider.getLastMetrics?.() });
+    const metrics = provider.getLastMetrics?.();
+    await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: "agent.transcribe", entity_type: "conversation", metadata: { metrics, size: audio.size, type: audio.type } });
+    return NextResponse.json({ transcript, metrics });
   } catch (error) {
     console.error("agent.transcription.failed", { code: error instanceof Error ? error.message : "UNKNOWN", organizationId, size: audio.size, type: audio.type });
     if (error instanceof Error && error.message === "OPENAI_TRANSCRIPTION_MODEL_UNAVAILABLE") {

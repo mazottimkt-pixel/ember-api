@@ -42,9 +42,9 @@ export function AgentLab() {
     const body = new FormData(); body.set("audio", file);
     try {
       const response = await fetch("/api/agent/transcribe", { method: "POST", body });
-      const data = await response.json() as { transcript?: string; error?: string };
+      const data = await response.json() as { transcript?: string; metrics?: Metrics; error?: string };
       if (!response.ok || !data.transcript) throw new Error(data.error || "Falha na transcrição.");
-      setText(data.transcript);
+      setText(data.transcript); setMetrics(data.metrics); setProvider("openai");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha na transcrição."); }
     finally { setPending(false); }
   }

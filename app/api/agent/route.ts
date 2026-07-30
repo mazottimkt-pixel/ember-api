@@ -21,6 +21,18 @@ function publicError(error: unknown) {
   return "Não consegui concluir esta etapa. Seus dados foram preservados; tente novamente ou use o painel.";
 }
 
+function normalizeValidity(value: string | null) {
+  if (!value) return value;
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  const normalized = br ? `${br[3]}-${br[2]}-${br[1]}` : value;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!match) return null;
+  const date = new Date(`${normalized}T12:00:00Z`);
+  const year = Number(match[1]);
+  if (year < new Date().getUTCFullYear() || year > new Date().getUTCFullYear() + 10 || date.toISOString().slice(0, 10) !== normalized) return null;
+  return normalized;
+}
+
 export async function POST(request: Request) {
   const parsed = agentRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Solicitação inválida." }, { status: 400 });
@@ -61,7 +73,8 @@ export async function POST(request: Request) {
       reply = `Documento ${result.number} confirmado. O PDF está pronto para download.`;
     } else {
       const ai = getAgentAIProvider(); provider = ai.name;
-      const decision = await ai.analyze(input.text, current); metrics = ai.getLastMetrics?.(); draft = agentDraftSchema.parse(decision.draft);
+      const decision = await ai.analyze(input.text, current); metrics = ai.getLastMetrics?.();
+      draft = agentDraftSchema.parse({ ...decision.draft, validity: normalizeValidity(decision.draft.validity) });
       if (decision.intent === "cancel") { state = "cancelled"; reply = "Operação cancelada. Nenhum documento foi confirmado."; }
       else if (draft.type === "document_search" && draft.documentQuery) {
         documents = await queryDocuments(ctx, draft.documentQuery); state = "collecting";

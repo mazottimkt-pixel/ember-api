@@ -6,6 +6,7 @@ import type { AgentAIProvider, ProviderMetrics } from "./provider";
 
 const instructions = `Você é o agente comercial do Ember Comercial. Fale em português brasileiro, de modo formal, cordial e objetivo. Use frases claras e curtas. Faça somente uma pergunta por vez. Extraia exclusivamente dados informados pelo usuário e preserve os dados válidos do rascunho atual. Nunca invente dados. Confirme valores e datas. Não dê parecer jurídico ou fiscal. Informe quando precisar de intervenção humana. Um documento definitivo sempre exige confirmação explícita e validação do servidor.`;
 const modelAvailability = new Map<string, { available: boolean; checkedAt: number }>();
+const dateInstructions = "No campo validity, use exclusivamente datas no formato YYYY-MM-DD.";
 
 export class OpenAIProvider implements AgentAIProvider {
   readonly name = "openai";
@@ -52,7 +53,7 @@ export class OpenAIProvider implements AgentAIProvider {
       if (!(await this.modelAvailable(model))) throw new Error("OPENAI_TEXT_MODEL_UNAVAILABLE");
       const response = await this.client.responses.parse({
         model,
-        instructions,
+        instructions: `${instructions} ${dateInstructions}`,
         input: `Rascunho atual:\n${JSON.stringify(current)}\n\nMensagem do usuário:\n${input}`,
         max_output_tokens: Math.min(Math.max(Number(process.env.OPENAI_MAX_OUTPUT_TOKENS) || 1200, 300), 3000),
         store: false,

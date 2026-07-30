@@ -112,4 +112,30 @@ test.describe("painel autenticado", () => {
     await page.keyboard.press("Tab");
     await expect(page.locator(":focus")).toBeVisible();
   });
+
+  test("agent lab rejects duplicate messages without reprocessing", async ({ page }) => {
+    await page.goto("/agent-lab");
+    const idempotencyKey = crypto.randomUUID();
+    const payload = { idempotencyKey, text: "Cancelar", action: "cancel" };
+    const first = await page.request.post("/api/agent", { data: payload });
+    expect(first.ok()).toBeTruthy();
+    const firstData = await first.json();
+    const second = await page.request.post("/api/agent", { data: payload });
+    expect(second.ok()).toBeTruthy();
+    const secondData = await second.json();
+    expect(secondData.duplicate).toBe(true);
+    expect(secondData.conversationId).toBe(firstData.conversationId);
+    expect(secondData.state).toBe("cancelled");
+  });
+
+  test("agent lab transcribes Portuguese audio and continues conversation", async ({ page }) => {
+    test.skip(!process.env.OPENAI_API_KEY, "OpenAI key required");
+    await page.goto("/agent-lab");
+    await page.locator("input.sr-only").setInputFiles("e2e/fixtures/agent-ptbr.mp3");
+    const box = page.locator("#agent-message");
+    await expect(box).toHaveValue(/Cl.nica Horizonte.*quatro servi.os/i);
+    await page.getByRole("button", { name: "Enviar", exact: true }).click();
+    await expect(page.getByText(/awaiting_confirmation|collecting/i)).toBeVisible();
+    await expect(page.getByText(/gpt-4o-mini/i)).toBeVisible();
+  });
 });
