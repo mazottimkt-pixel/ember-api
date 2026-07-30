@@ -1,2 +1,54 @@
-import {requireMembership} from "@/lib/auth/session";import {createDocument} from "../../crud-actions";
-export default async function NewDocument(){const{supabase}=await requireMembership();const[{data:customers=[]},{data:suppliers=[]}]=await Promise.all([supabase.from("customers").select("id,name").is("deleted_at",null).order("name"),supabase.from("suppliers").select("id,name").is("deleted_at",null).order("name")]);return <><div className="topline"><div><span className="eyebrow">DOCUMENTOS</span><h1>Novo documento</h1></div></div><form action={createDocument} className="panel form-grid"><div className="field"><label>Tipo</label><select name="type"><option value="quote">Orçamento</option><option value="purchase_order">Pedido de compra</option></select></div><div className="field"><label>Cliente ou fornecedor</label><select name="counterparty_id" required><option value="">Selecione</option><optgroup label="Clientes">{customers?.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</optgroup><optgroup label="Fornecedores">{suppliers?.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</optgroup></select></div><div className="field full"><label>Descrição</label><input name="description" required/></div><div className="field"><label>Quantidade</label><input name="quantity" type="number" min="0.01" step="0.01" required/></div><div className="field"><label>Unidade</label><input name="unit" defaultValue="un" required/></div><div className="field"><label>Valor unitário</label><input name="unit_price" type="number" min="0" step="0.01" required/></div><div className="field"><label>Desconto</label><input name="discount" type="number" min="0" step="0.01" defaultValue="0"/></div><div className="field"><label>Frete</label><input name="shipping" type="number" min="0" step="0.01" defaultValue="0"/></div><div className="field"><label>Validade</label><input name="validity"/></div><div className="field"><label>Entrega ou execução</label><input name="deadline" required/></div><div className="field full"><label>Pagamento</label><input name="payment_terms" required/></div><div className="field full"><label>Observações</label><textarea name="notes"/></div><div className="field full notice">O salvamento cria um rascunho. PDF definitivo somente após confirmação explícita.</div><button className="button">Criar rascunho</button></form></>}
+import { randomUUID } from "node:crypto";
+import { requireMembership } from "@/lib/auth/session";
+import { DocumentForm } from "@/components/document-form";
+export default async function NewDocument() {
+  const { supabase } = await requireMembership();
+  const [{ data: customers = [] }, { data: suppliers = [] }] =
+    await Promise.all([
+      supabase
+        .from("customers")
+        .select("id,name")
+        .is("deleted_at", null)
+        .order("name"),
+      supabase
+        .from("suppliers")
+        .select("id,name")
+        .is("deleted_at", null)
+        .order("name"),
+    ]);
+  return (
+    <>
+      <div className="topline">
+        <div>
+          <span className="eyebrow">NOVO DOCUMENTO</span>
+          <h1>Comece pelo essencial.</h1>
+          <p className="muted">Você poderá revisar tudo antes de confirmar.</p>
+        </div>
+      </div>
+      <DocumentForm
+        customers={customers ?? []}
+        suppliers={suppliers ?? []}
+        initial={{
+          requestId: randomUUID(),
+          type: "quote",
+          counterpartyId: "",
+          items: [
+            {
+              description: "",
+              quantity: 1,
+              unit: "un",
+              unitPrice: 0,
+              discount: 0,
+            },
+          ],
+          shipping: 0,
+          validity: "",
+          deadline: "",
+          paymentTerms: "",
+          deliveryAddress: "",
+          notes: "",
+        }}
+      />
+    </>
+  );
+}

@@ -24,8 +24,18 @@ const documentBaseSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 export const documentSchema = documentBaseSchema.superRefine((value, ctx) => {
-  if (value.type === "quote" && !value.validity) ctx.addIssue({ code: "custom", path: ["validity"], message: "Informe a validade" });
-  if (value.type === "purchase_order" && !value.deliveryAddress) ctx.addIssue({ code: "custom", path: ["deliveryAddress"], message: "Informe o endereço de entrega" });
+  if (value.type === "quote" && !value.validity)
+    ctx.addIssue({
+      code: "custom",
+      path: ["validity"],
+      message: "Informe a validade",
+    });
+  if (value.type === "purchase_order" && !value.deliveryAddress)
+    ctx.addIssue({
+      code: "custom",
+      path: ["deliveryAddress"],
+      message: "Informe o endereço de entrega",
+    });
 });
 
 export const aiExtractionSchema = documentBaseSchema.partial().extend({
