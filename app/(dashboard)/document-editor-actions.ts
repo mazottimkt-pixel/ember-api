@@ -6,7 +6,7 @@ import { requireMembership } from "@/lib/auth/session";
 import { calculateDocument } from "@/lib/domain/calculations";
 
 const itemSchema = z.object({
-  description: z.string().trim().min(2).max(500),
+  description: z.string().trim().min(1).max(500),
   quantity: z.coerce.number().positive(),
   unit: z.string().trim().min(1).max(20),
   unitPrice: z.coerce.number().min(0),
@@ -45,8 +45,8 @@ const schema = z
       ),
     shipping: z.coerce.number().min(0),
     validity: reasonableDate,
-    deadline: z.string().trim().min(2).max(160),
-    payment_terms: z.string().trim().min(2).max(300),
+    deadline: z.string().trim().min(1).max(160),
+    payment_terms: z.string().trim().min(1).max(300),
     delivery_address: z.string().trim().max(500).optional(),
     notes: z.string().trim().max(2000).optional(),
   })
@@ -60,13 +60,35 @@ export async function saveDocumentDraft(
 ): Promise<SaveDocumentResult> {
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
+    const fieldLabels: Record<string, string> = {
+      request_id: "identificador do rascunho",
+      type: "tipo do documento",
+      counterparty_id: "fornecedor ou cliente",
+      items_json: "itens",
+      shipping: "frete",
+      validity: "validade",
+      deadline: "prazo",
+      payment_terms: "condição de pagamento",
+      delivery_address: "endereço de entrega",
+      notes: "observações",
+    };
+    const invalidFields = [
+      ...new Set(
+        parsed.error.issues.map((issue) => {
+          const root = String(issue.path[0] ?? "formulário");
+          return fieldLabels[root] ?? root;
+        }),
+      ),
+    ];
     console.error("document.save.validation_failed", {
-      issues: parsed.error.issues.map(({ path, code }) => ({ path, code })),
+      issues: parsed.error.issues.map(({ path, code }) => ({
+        field: path.join("."),
+        code,
+      })),
     });
     return {
       ok: false,
-      message:
-        "Revise os campos informados. Confira principalmente datas, itens e condições comerciais.",
+      message: `Não foi possível salvar. Revise: ${invalidFields.join(", ")}.`,
     };
   }
 
@@ -118,7 +140,19 @@ export async function saveDocumentDraft(
       state: party.state,
     },
   };
-  const totals = calculateDocument(data.items, Number(data.shipping));
+  let totals: ReturnType<typeof calculateDocument>;
+  try {
+    totals = calculateDocument(data.items, Number(data.shipping));
+  } catch (error) {
+    console.error("document.save.calculation_failed", {
+      reason: error instanceof Error ? error.name : "unknown",
+    });
+    return {
+      ok: false,
+      message:
+        "Não foi possível calcular os totais. Confira quantidades, valores e descontos.",
+    };
+  }
   const terms = {
     validity: data.validity || null,
     deadline: data.deadline,
