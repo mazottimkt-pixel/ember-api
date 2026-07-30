@@ -8,6 +8,8 @@ Nenhuma pendência do proprietário bloqueia o painel local. Conexão, migration
 - `OPENAI_TEXT_MODEL`
 - `OPENAI_TRANSCRIPTION_MODEL`
 
+Defaults recomendados: `gpt-4o-mini` e `gpt-4o-mini-transcribe`. A disponibilidade é conferida para a conta antes do uso; o sistema não lista o catálogo completo em logs ou no cliente.
+
 Sem `OPENAI_API_KEY`, o `/agent-lab` usa fallback local e a transcrição fica indisponível.
 
 ## Futuro — não conectar agora

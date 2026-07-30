@@ -16,6 +16,7 @@ export function AgentLab() {
   const [error, setError] = useState<string>();
   const [pdfUrl, setPdfUrl] = useState<string>();
   const [recording, setRecording] = useState(false);
+  const [modelStatus, setModelStatus] = useState<string>("Não verificado");
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -58,6 +59,15 @@ export function AgentLab() {
     } catch { setError("Não foi possível acessar o microfone. Verifique a permissão do navegador."); }
   }
 
+  async function verifyModels() {
+    setModelStatus("Verificando…");
+    try {
+      const response = await fetch("/api/agent/models");
+      const data = await response.json() as { configured: boolean; text: { id: string; available: boolean | null }; transcription: { id: string; available: boolean | null } };
+      setModelStatus(!data.configured ? `Chave não configurada. Texto: ${data.text.id}; áudio: ${data.transcription.id}.` : `Texto ${data.text.id}: ${data.text.available ? "disponível" : "indisponível"}. Áudio ${data.transcription.id}: ${data.transcription.available ? "disponível" : "indisponível"}.`);
+    } catch { setModelStatus("Não foi possível verificar os modelos agora."); }
+  }
+
   return <div className="agent-layout">
     <section className="panel agent-chat" aria-label="Conversa de teste">
       <div className="agent-turns" aria-live="polite">{turns.map((turn, index) => <div key={index} className={`agent-message ${turn.role}`}><strong>{turn.role === "agent" ? "Ember" : "Você"}</strong><p>{turn.text}</p></div>)}</div>
@@ -76,6 +86,6 @@ export function AgentLab() {
         {pdfUrl && <a className="button secondary" href={pdfUrl}>Baixar PDF</a>}
       </div>
     </section>
-    <aside className="panel agent-inspector"><h2>Estado persistido</h2><p><strong>Estado:</strong> {state}</p><p><strong>Provider:</strong> {provider}</p><pre>{JSON.stringify(draft ?? {}, null, 2)}</pre><p className="help">A chave da OpenAI permanece somente no servidor. Nenhuma ação definitiva é executada sem confirmação.</p></aside>
+    <aside className="panel agent-inspector"><h2>Estado persistido</h2><p><strong>Estado:</strong> {state}</p><p><strong>Provider:</strong> {provider}</p><button className="button secondary" type="button" onClick={verifyModels}>Verificar modelos configurados</button><p className="help" aria-live="polite">{modelStatus}</p><pre>{JSON.stringify(draft ?? {}, null, 2)}</pre><p className="help">A chave da OpenAI permanece somente no servidor. Nenhuma ação definitiva é executada sem confirmação.</p></aside>
   </div>;
 }

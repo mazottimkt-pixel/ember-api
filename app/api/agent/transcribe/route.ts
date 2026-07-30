@@ -20,6 +20,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ transcript });
   } catch (error) {
     console.error("agent.transcription.failed", { code: error instanceof Error ? error.message : "UNKNOWN", organizationId, size: audio.size, type: audio.type });
+    if (error instanceof Error && error.message === "OPENAI_TRANSCRIPTION_MODEL_UNAVAILABLE") {
+      return NextResponse.json({ error: "O modelo de transcrição configurado não existe ou não está disponível para esta conta. Confira a configuração no laboratório." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Não foi possível transcrever o áudio. Tente novamente ou digite a mensagem." }, { status: 503 });
   }
 }
