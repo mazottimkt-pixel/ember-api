@@ -1,3 +1,6 @@
+import { after } from "next/server";
+import { parseWhatsAppWebhook } from "@/lib/channels/whatsapp-adapter";
+import { processWhatsAppEvents } from "@/lib/whatsapp/processor";
 import { verifyMetaSignature } from "@/lib/whatsapp/signature";
 
 export async function GET(request: Request) {
@@ -30,9 +33,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "JSON inválido" }, { status: 400 });
   }
   // Persistência idempotente deve usar whatsapp_message_id UNIQUE na migration. O worker é conectado após configurar Supabase/Meta.
-  return Response.json({
-    received: true,
-    mode: process.env.WHATSAPP_ACCESS_TOKEN ? "configured" : "mock",
-    payloadAccepted: Boolean(payload),
-  });
+  const events = parseWhatsAppWebhook(payload);
+  after(async () => { await processWhatsAppEvents(events); });
+  return Response.json({ received: true, eventCount: events.length });
 }

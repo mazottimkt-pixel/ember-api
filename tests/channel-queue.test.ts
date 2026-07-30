@@ -38,4 +38,10 @@ describe("channel queue", () => {
     await expect(withBackoff(operation, { attempts: 2, baseDelayMs: 1 })).resolves.toBe("ok");
     expect(operation).toHaveBeenCalledTimes(2);
   });
+
+  it("não repete falha não recuperável", async () => {
+    const operation = vi.fn().mockRejectedValue(new Error("permanent"));
+    await expect(withBackoff(operation, { attempts: 3, baseDelayMs: 1, shouldRetry: () => false })).rejects.toThrow("permanent");
+    expect(operation).toHaveBeenCalledOnce();
+  });
 });
