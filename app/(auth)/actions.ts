@@ -1,6 +1,39 @@
 "use server";
-import { z } from "zod";import { redirect } from "next/navigation";import { createSupabaseServerClient } from "@/lib/supabase/server";import { requireSession } from "@/lib/auth/session";
-export type AuthState={error?:string};
-export async function login(_:AuthState,formData:FormData):Promise<AuthState>{const parsed=z.object({email:z.email(),password:z.string().min(8)}).safeParse(Object.fromEntries(formData));if(!parsed.success)return{error:"E-mail ou senha inválidos"};const supabase=await createSupabaseServerClient();const {error}=await supabase.auth.signInWithPassword(parsed.data);if(error)return{error:"Não foi possível entrar"};redirect("/dashboard")}
-export async function logout(){const supabase=await createSupabaseServerClient();await supabase.auth.signOut();redirect("/login")}
-export async function onboard(_:AuthState,formData:FormData):Promise<AuthState>{const parsed=z.object({name:z.string().trim().min(2).max(120)}).safeParse(Object.fromEntries(formData));if(!parsed.success)return{error:"Informe o nome da empresa"};const {supabase}=await requireSession();const {error}=await supabase.rpc("create_organization",{org_name:parsed.data.name});if(error)return{error:"Não foi possível criar a organização"};redirect("/dashboard")}
+import { z } from "zod";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireSession } from "@/lib/auth/session";
+export type AuthState = { error?: string };
+export async function login(
+  _: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const parsed = z
+    .object({ email: z.email(), password: z.string().min(8) })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "E-mail ou senha inválidos" };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error) return { error: "Não foi possível entrar" };
+  redirect("/dashboard");
+}
+export async function logout() {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/login");
+}
+export async function onboard(
+  _: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const parsed = z
+    .object({ name: z.string().trim().min(2).max(120) })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Informe o nome da empresa" };
+  const { supabase } = await requireSession();
+  const { error } = await supabase.rpc("create_organization", {
+    org_name: parsed.data.name,
+  });
+  if (error) return { error: "Não foi possível criar a organização" };
+  redirect("/dashboard");
+}

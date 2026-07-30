@@ -1,2 +1,51 @@
 import Link from "next/link";
-export default function Home() { return <main className="landing"><nav><strong>ember.</strong><Link href="/login">Entrar</Link></nav><section className="hero"><span className="eyebrow">ASSISTENTE COMERCIAL</span><h1>Documentos profissionais,<br/>direto no WhatsApp.</h1><p>Crie orçamentos e pedidos de compra por texto ou áudio, confirme os dados e envie PDFs com a identidade da sua empresa.</p><div className="actions"><Link className="button" href="/login">Começar agora</Link><Link className="button secondary" href="/dashboard">Ver demonstração</Link></div></section><section className="feature-grid"><article><b>01</b><h2>Converse naturalmente</h2><p>O agente entende texto e áudio e pergunta apenas o que estiver faltando.</p></article><article><b>02</b><h2>Confirme com segurança</h2><p>Nenhum documento definitivo é gerado sem confirmação explícita.</p></article><article><b>03</b><h2>Compartilhe o PDF</h2><p>Um documento limpo, calculado e pronto para encaminhar.</p></article></section></main>; }
+export default function Home() {
+  return (
+    <main className="landing">
+      <nav>
+        <strong>ember.</strong>
+        <Link href="/login">Entrar</Link>
+      </nav>
+      <section className="hero">
+        <span className="eyebrow">ASSISTENTE COMERCIAL</span>
+        <h1>
+          Documentos profissionais,
+          <br />
+          direto no WhatsApp.
+        </h1>
+        <p>
+          Crie orçamentos e pedidos de compra por texto ou áudio, confirme os
+          dados e envie PDFs com a identidade da sua empresa.
+        </p>
+        <div className="actions">
+          <Link className="button" href="/login">
+            Começar agora
+          </Link>
+          <Link className="button secondary" href="/dashboard">
+            Ver demonstração
+          </Link>
+        </div>
+      </section>
+      <section className="feature-grid">
+        <article>
+          <b>01</b>
+          <h2>Converse naturalmente</h2>
+          <p>
+            O agente entende texto e áudio e pergunta apenas o que estiver
+            faltando.
+          </p>
+        </article>
+        <article>
+          <b>02</b>
+          <h2>Confirme com segurança</h2>
+          <p>Nenhum documento definitivo é gerado sem confirmação explícita.</p>
+        </article>
+        <article>
+          <b>03</b>
+          <h2>Compartilhe o PDF</h2>
+          <p>Um documento limpo, calculado e pronto para encaminhar.</p>
+        </article>
+      </section>
+    </main>
+  );
+}

@@ -1,5 +1,51 @@
 "use client";
-import {useActionState} from "react";import {login,onboard,type AuthState} from "@/app/(auth)/actions";
-const initial:AuthState={};
-export function LoginForm(){const[state,action,pending]=useActionState(login,initial);return <form action={action} className="form-grid"><div className="field full"><label htmlFor="email">E-mail</label><input name="email" id="email" type="email" required autoComplete="email"/></div><div className="field full"><label htmlFor="password">Senha</label><input name="password" id="password" type="password" required minLength={8} autoComplete="current-password"/></div>{state.error&&<p className="error field full">{state.error}</p>}<button className="button field full" disabled={pending}>{pending?"Entrando…":"Entrar"}</button></form>}
-export function OnboardingForm(){const[state,action,pending]=useActionState(onboard,initial);return <form action={action} className="form-grid"><div className="field full"><label htmlFor="name">Nome da empresa</label><input name="name" id="name" required minLength={2}/></div>{state.error&&<p className="error field full">{state.error}</p>}<button className="button field full" disabled={pending}>{pending?"Criando…":"Criar organização"}</button></form>}
+import { useActionState } from "react";
+import { login, onboard, type AuthState } from "@/app/(auth)/actions";
+const initial: AuthState = {};
+export function LoginForm() {
+  const [state, action, pending] = useActionState(login, initial);
+  return (
+    <form action={action} className="form-grid">
+      <div className="field full">
+        <label htmlFor="email">E-mail</label>
+        <input
+          name="email"
+          id="email"
+          type="email"
+          required
+          autoComplete="email"
+        />
+      </div>
+      <div className="field full">
+        <label htmlFor="password">Senha</label>
+        <input
+          name="password"
+          id="password"
+          type="password"
+          required
+          minLength={8}
+          autoComplete="current-password"
+        />
+      </div>
+      {state.error && <p className="error field full">{state.error}</p>}
+      <button className="button field full" disabled={pending}>
+        {pending ? "Entrando…" : "Entrar"}
+      </button>
+    </form>
+  );
+}
+export function OnboardingForm() {
+  const [state, action, pending] = useActionState(onboard, initial);
+  return (
+    <form action={action} className="form-grid">
+      <div className="field full">
+        <label htmlFor="name">Nome da empresa</label>
+        <input name="name" id="name" required minLength={2} />
+      </div>
+      {state.error && <p className="error field full">{state.error}</p>}
+      <button className="button field full" disabled={pending}>
+        {pending ? "Criando…" : "Criar organização"}
+      </button>
+    </form>
+  );
+}

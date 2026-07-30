@@ -13,7 +13,10 @@
     "db:inspect": "node scripts/db-inspect.mjs",
     "db:migrate": "node scripts/db-migrate.mjs --apply",
     "db:validate": "node scripts/db-validate.mjs",
-    "test:integration": "node scripts/integration-flow.mjs"
+    "test:integration": "node scripts/integration-flow.mjs",
+    "db:seed": "node scripts/seed-demo.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:desktop": "playwright test --project=desktop"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
@@ -28,6 +31,7 @@
     "postcss": "8.5.25"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
@@ -36,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.12",
     "pg": "^8.22.0",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
