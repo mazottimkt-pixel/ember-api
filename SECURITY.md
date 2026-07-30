@@ -10,6 +10,8 @@ O MVP usa validação Zod, Supabase Auth, RLS por organização, Storage privado
 - PDFs são recuperados por endpoint autenticado; referências internas do Storage não são URLs públicas.
 - Entradas são validadas por Zod no servidor e documentos usam `request_id` único por organização contra duplicidade.
 - Playwright verifica redirecionamento de rotas protegidas, fluxo confirmado e download autenticado.
+- CPF/CNPJ é normalizado e único por organização; RLS também protege `business_contacts`.
+- A consulta pública de CEP passa por rota autenticada, valida exatamente oito dígitos e possui timeout.
 
 ## Dependências
 

@@ -7,6 +7,12 @@ const settings = z.object({
   legal_name: z.string().trim().max(160).optional(),
   tax_id: z.string().trim().max(30).optional(),
   phone: z.string().trim().max(30).optional(),
+  email: z.union([z.email(), z.literal("")]).optional(),
+  postal_code: z.string().trim().max(9).optional(),
+  street: z.string().trim().max(160).optional(),
+  street_number: z.string().trim().max(30).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(2).optional(),
 });
 export async function saveSettings(formData: FormData) {
   const data = settings.parse(Object.fromEntries(formData));
@@ -31,9 +37,20 @@ export async function saveSettings(formData: FormData) {
       legal_name: data.legal_name || null,
       tax_id: data.tax_id || null,
       phone: data.phone || null,
+      email: data.email || null,
+      address: { postal_code: data.postal_code || null, street: data.street || null, number: data.street_number || null, city: data.city || null, state: data.state || null },
       ...(logoPath ? { logo_path: logoPath } : {}),
     })
     .eq("id", organizationId);
   if (error) throw new Error("Não foi possível salvar as configurações");
+  revalidatePath("/settings");
+}
+
+const profileSchema = z.object({ full_name: z.string().trim().min(2).max(160), email: z.union([z.email(), z.literal("")]), job_title: z.string().trim().max(100).optional() });
+export async function saveProfile(formData: FormData) {
+  const data = profileSchema.parse(Object.fromEntries(formData));
+  const { supabase, user } = await requireMembership();
+  const { error } = await supabase.from("profiles").update({ full_name: data.full_name, email: data.email || null, job_title: data.job_title || null }).eq("id", user.id);
+  if (error) throw new Error("Não foi possível salvar o responsável");
   revalidatePath("/settings");
 }

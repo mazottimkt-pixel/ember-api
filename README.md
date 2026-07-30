@@ -24,7 +24,9 @@ Validação completa: `npm run check`. Aplique `supabase/migrations/202607290001
 - PDF reutilizável e endpoint de prévia.
 - Editor de documentos com múltiplos itens, autosave, duplicação, confirmação e histórico.
 - Listas com busca, filtros, ordenação, paginação, exclusão lógica e restauração.
+- Cadastro comercial unificado: um contato pode ser cliente, fornecedor ou ambos, com endereço estruturado e busca de CEP.
 - PDF A4 multipágina armazenado em bucket privado e entregue por rota autenticada.
+- Datas validadas e PDFs com acentuação, dados completos das partes e identificação do responsável.
 - Página interna `/demo` e cobertura Playwright em celular, tablet e desktop.
 - webhook oficial da Meta com verificação de challenge, assinatura e chave idempotente no banco.
 - provedores de IA e WhatsApp explicitamente mockados sem credenciais.

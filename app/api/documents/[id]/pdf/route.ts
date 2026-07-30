@@ -28,7 +28,7 @@ export async function GET(
   const { data: doc, error } = await supabase
     .from("documents")
     .select(
-      "*,organizations(name,logo_path),profiles!documents_issued_by_fkey(full_name),document_items(*)",
+      "*,organizations(name,legal_name,tax_id,phone,email,address,logo_path),profiles!documents_issued_by_fkey(full_name,email,job_title),document_items(*)",
     )
     .eq("id", id)
     .single();
@@ -42,31 +42,20 @@ export async function GET(
       { error: "Confirmação explícita obrigatória" },
       { status: 409 },
     );
-  const { data: existing } = await supabase
-    .from("files")
-    .select("storage_path")
-    .eq("document_id", id)
-    .eq("mime_type", "application/pdf")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (existing) {
-    const downloaded = await supabase.storage
-      .from("documents")
-      .download(existing.storage_path);
-    if (!downloaded.error)
-      return response(await downloaded.data.arrayBuffer(), doc.number);
-  }
   const terms = doc.commercial_terms as {
     validity?: string;
     deadline?: string;
     paymentTerms?: string;
     deliveryAddress?: string;
   };
-  const party = doc.counterparty_snapshot as { name?: string };
+  const party = doc.counterparty_snapshot as Record<string, unknown>;
   const organization = doc.organizations as {
     name?: string;
+    legal_name?: string;
+    tax_id?: string;
+    phone?: string;
+    email?: string;
+    address?: Record<string, string>;
     logo_path?: string;
   };
   let logoBytes: Uint8Array | undefined;
@@ -78,7 +67,7 @@ export async function GET(
   }
   const input = {
     type: doc.type,
-    counterpartyName: party.name ?? "Destinatário",
+    counterpartyName: String(party.name ?? party.legal_name ?? "Destinatário"),
     items: doc.document_items.map(
       (i: {
         description: string;
@@ -109,6 +98,28 @@ export async function GET(
     number: doc.number,
     issuerName:
       (doc.profiles as { full_name?: string })?.full_name ?? "Responsável",
+    issuerEmail: (doc.profiles as { email?: string })?.email,
+    issuerJobTitle: (doc.profiles as { job_title?: string })?.job_title,
+    organizationDetails: [
+      organization.legal_name,
+      organization.tax_id && `CPF/CNPJ: ${organization.tax_id}`,
+      organization.email,
+      organization.phone,
+      organization.address &&
+        [
+          organization.address.street,
+          organization.address.number,
+          organization.address.city,
+          organization.address.state,
+        ]
+          .filter(Boolean)
+          .join(", "),
+    ].filter(Boolean) as string[],
+    counterpartyDetails: [
+      party.tax_id && `CPF/CNPJ: ${String(party.tax_id)}`,
+      party.email && String(party.email),
+      party.phone && String(party.phone),
+    ].filter(Boolean) as string[],
     validationCode: doc.validation_code,
     logoBytes,
   });
@@ -121,23 +132,19 @@ export async function GET(
       { error: "Falha ao armazenar PDF" },
       { status: 500 },
     );
-  await supabase
-    .from("files")
-    .insert({
-      organization_id: doc.organization_id,
-      document_id: doc.id,
-      storage_path: path,
-      mime_type: "application/pdf",
-      size_bytes: bytes.length,
-    });
-  await supabase
-    .from("document_events")
-    .insert({
-      organization_id: doc.organization_id,
-      document_id: doc.id,
-      event_type: "pdf.generated",
-      actor_id: user.id,
-    });
+  await supabase.from("files").insert({
+    organization_id: doc.organization_id,
+    document_id: doc.id,
+    storage_path: path,
+    mime_type: "application/pdf",
+    size_bytes: bytes.length,
+  });
+  await supabase.from("document_events").insert({
+    organization_id: doc.organization_id,
+    document_id: doc.id,
+    event_type: "pdf.generated",
+    actor_id: user.id,
+  });
   await supabase
     .from("documents")
     .update({ status: "generated" })

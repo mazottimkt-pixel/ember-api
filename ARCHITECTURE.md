@@ -1,5 +1,13 @@
 # Arquitetura
 
+## Contatos e documentos
+
+O painel usa uma única entidade `business_contacts`. O formulário filtra o mesmo conjunto pelo papel necessário: cliente para orçamento e fornecedor para pedido de compra. O servidor repete essa validação antes de persistir e grava um snapshot completo no documento.
+
+Rascunhos novos recebem uma chave idempotente exclusiva. A chave de armazenamento local inclui o UUID do rascunho, impedindo que um orçamento anterior seja reutilizado ao iniciar um pedido. Server Actions retornam resultados tipados para o componente cliente; navegação não é mais tratada como exceção de erro.
+
+O PDF é regenerado sob autenticação, usa dados persistidos da organização, contraparte e responsável, valida datas ISO em faixa razoável e apresenta datas em `DD/MM/AAAA`.
+
 O Next.js 16 (App Router) concentra painel e backend-for-frontend. Server Components fazem leitura; Route Handlers recebem webhooks e geram arquivos; qualquer mutação deve autenticar, autorizar e validar novamente no servidor. Supabase fornece Auth, PostgreSQL com RLS e Storage privado.
 
 O domínio em `lib/domain` não depende de UI ou banco. Integrações em `lib/ai`, `lib/pdf` e `lib/whatsapp` usam limites explícitos: a IA retorna dados não confiáveis, Zod valida, regras calculam e apenas então um rascunho pode ser persistido. A transição para definitivo exige `confirmed_at` e `confirmed_by`.

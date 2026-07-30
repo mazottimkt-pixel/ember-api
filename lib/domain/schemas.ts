@@ -14,7 +14,20 @@ const documentBaseSchema = z.object({
   counterpartyName: z.string().trim().min(2).max(160),
   items: z.array(documentItemSchema).min(1).max(100),
   shipping: moneySchema.default(0),
-  validity: z.string().trim().max(100).optional(),
+  validity: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((value) => {
+      const year = Number(value.slice(0, 4));
+      const date = new Date(`${value}T12:00:00Z`);
+      return (
+        year >= new Date().getFullYear() &&
+        year <= new Date().getFullYear() + 10 &&
+        date.toISOString().slice(0, 10) === value
+      );
+    }, "Data fora da faixa permitida")
+    .optional(),
   deadline: z.string().trim().min(2).max(160),
   paymentTerms: z.string().trim().min(2).max(300),
   deliveryAddress: z.string().trim().max(300).optional(),

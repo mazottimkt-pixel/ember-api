@@ -8,11 +8,16 @@ import {
 } from "pdf-lib";
 import { calculateDocument, formatBRL } from "@/lib/domain/calculations";
 import { documentSchema, type DocumentInput } from "@/lib/domain/schemas";
+import { formatDateBR } from "@/lib/domain/brazil";
 
 type Meta = {
   organizationName: string;
   number: string;
   issuerName: string;
+  issuerEmail?: string;
+  issuerJobTitle?: string;
+  organizationDetails?: string[];
+  counterpartyDetails?: string[];
   validationCode: string;
   logoBytes?: Uint8Array;
   generatedAt?: Date;
@@ -67,21 +72,30 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
       color: rgb(0.78, 0.8, 0.78),
     });
     page.drawText(
-      `Validacao: ${meta.validationCode} | ${generated.toLocaleString("pt-BR")} | Pagina ${pageNumber}`,
+      `Validação: ${meta.validationCode} | ${generated.toLocaleString("pt-BR")} | Página ${pageNumber}`,
       { x: margin, y: 19, size: 7, font: regular, color: rgb(0.35, 0.4, 0.37) },
     );
   };
   const drawBrand = () => {
     if (logo)
       page.drawImage(logo, { x: margin, y: y - 35, width: 70, height: 35 });
-    page.drawText(meta.organizationName.slice(0, 70), {
-      x: logo ? 125 : margin,
-      y: y - 20,
-      size: 17,
-      font: bold,
-      color: rgb(0.08, 0.27, 0.18),
-    });
-    y -= 54;
+    const brandX = logo ? 125 : margin;
+    const brandLines = wrap(
+      meta.organizationName,
+      width - margin - brandX,
+      bold,
+      15,
+    ).slice(0, 2);
+    brandLines.forEach((line, index) =>
+      page.drawText(line, {
+        x: brandX,
+        y: y - 18 - index * 18,
+        size: 15,
+        font: bold,
+        color: rgb(0.08, 0.27, 0.18),
+      }),
+    );
+    y -= Math.max(54, brandLines.length * 18 + 26);
   };
   const newPage = () => {
     footer();
@@ -113,9 +127,9 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
       color: rgb(0.09, 0.3, 0.21),
     });
     for (const [label, x] of [
-      ["Descricao", margin + 7],
+      ["Descrição", margin + 7],
       ["Qtd.", 330],
-      ["Unitario", 395],
+      ["Unitário", 395],
       ["Total", 490],
     ] as const) {
       page.drawText(label, {
@@ -130,14 +144,16 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   };
 
   drawBrand();
-  text(data.type === "quote" ? "ORCAMENTO" : "PEDIDO DE COMPRA", 15, true);
-  text(`Numero ${meta.number} | ${generated.toLocaleDateString("pt-BR")}`);
+  text(data.type === "quote" ? "ORÇAMENTO" : "PEDIDO DE COMPRA", 15, true);
+  text(`Número ${meta.number} | ${generated.toLocaleDateString("pt-BR")}`);
+  for (const detail of meta.organizationDetails ?? []) text(detail, 8);
   y -= 8;
   text(
     `${data.type === "quote" ? "Cliente" : "Fornecedor"}: ${data.counterpartyName}`,
     11,
     true,
   );
+  for (const detail of meta.counterpartyDetails ?? []) text(detail, 8);
   y -= 12;
   tableHeader();
   for (const item of totals.items) {
@@ -189,18 +205,20 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   y -= 10;
   text(`Prazo: ${data.deadline}`, 9, true);
   text(`Pagamento: ${data.paymentTerms}`);
-  if (data.validity) text(`Validade: ${data.validity}`);
+  if (data.validity) text(`Validade: ${formatDateBR(data.validity)}`);
   if (data.deliveryAddress) text(`Entrega: ${data.deliveryAddress}`);
   if (data.notes) {
     y -= 6;
-    text("Observacoes", 10, true);
+    text("Observações", 10, true);
     text(data.notes);
   }
   y -= 10;
-  text(`Responsavel: ${meta.issuerName}`, 8);
+  text(`Responsável: ${meta.issuerName}`, 8);
+  if (meta.issuerJobTitle) text(`Cargo: ${meta.issuerJobTitle}`, 8);
+  if (meta.issuerEmail) text(`E-mail: ${meta.issuerEmail}`, 8);
   footer();
   pdf.setTitle(
-    `${data.type === "quote" ? "Orcamento" : "Pedido"} ${meta.number}`,
+    `${data.type === "quote" ? "Orçamento" : "Pedido"} ${meta.number}`,
   );
   pdf.setCreator("Ember Comercial");
   return pdf.save();

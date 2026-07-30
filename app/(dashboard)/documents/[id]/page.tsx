@@ -140,9 +140,9 @@ export default async function DocumentPage({
           <span className={`status ${doc.status}`}>{doc.status}</span>
         </p>
         {doc.status !== "draft" && (
-          <Link className="button" href={`/api/documents/${id}/pdf`}>
+          <a className="button" href={`/api/documents/${id}/pdf`} download={`${doc.number}.pdf`}>
             Baixar PDF
-          </Link>
+          </a>
         )}
       </section>
       <section className="panel" style={{ marginTop: 16 }}>

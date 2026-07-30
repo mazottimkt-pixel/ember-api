@@ -27,13 +27,39 @@ describe("PDF", () => {
         shipping: 0,
         deadline: "5 dias",
         paymentTerms: "50% na aprovação e 50% na conclusão",
-        validity: "15 dias",
+        validity: `${new Date().getFullYear() + 1}-12-31`,
       },
       meta,
     );
     expect(Buffer.from(bytes).subarray(0, 4).toString()).toBe("%PDF");
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPage(0).getSize()).toEqual({ width: 595, height: 842 });
+  });
+
+  it("aceita caracteres acentuados e rejeita validade com ano inválido", async () => {
+    await expect(
+      generateDocumentPdf(
+        {
+          type: "quote",
+          counterpartyName: "João Gonçalves",
+          items: [
+            {
+              description: "Instalação elétrica e revisão",
+              quantity: 1,
+              unit: "un",
+              unitPrice: 100,
+              discount: 0,
+            },
+          ],
+          shipping: 0,
+          deadline: "Até 5 dias úteis",
+          paymentTerms: "À vista",
+          validity: "0277-07-07",
+          notes: "Observações com acentuação",
+        },
+        meta,
+      ),
+    ).rejects.toThrow();
   });
 
   it("quebra páginas com muitos itens e textos longos", async () => {
@@ -52,7 +78,8 @@ describe("PDF", () => {
         deadline: "Entrega em até 20 dias úteis",
         paymentTerms: "30 dias após o recebimento",
         deliveryAddress: "Rua das Flores, 1000, São Paulo - SP",
-        notes: "Conferir todos os volumes e registrar eventuais avarias no recebimento.",
+        notes:
+          "Conferir todos os volumes e registrar eventuais avarias no recebimento.",
       },
       meta,
     );

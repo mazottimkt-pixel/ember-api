@@ -11,11 +11,13 @@
 - [x] Edição avançada de rascunhos com múltiplos itens e autosave.
 - [x] Identidade visual básica, upload privado de logotipo e testes E2E de navegador.
 - [x] Experiência mobile-first, dados de demonstração e checklist interno do fluxo.
+- [x] Cadastros unificados com papéis de cliente/fornecedor e migração sem perda de documentos.
+- [x] Correção do fluxo de pedido de compra, datas brasileiras e PDF acentuado.
 
 ## Próximas melhorias seguras
 
 - [ ] Testes automatizados de contraste com ferramenta especializada.
-- [ ] Edição inline dos cadastros auxiliares e endereço estruturado por CEP.
+- [x] Edição inline dos cadastros auxiliares e endereço estruturado por CEP.
 - [ ] Identidade visual definitiva fornecida pelo proprietário.
 
 OpenAI, Meta/WhatsApp, domínio e produção permanecem fora desta etapa.

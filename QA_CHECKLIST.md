@@ -4,6 +4,8 @@
 
 - [x] Login, logout, sessão protegida e onboarding.
 - [x] Cadastro persistido de cliente, fornecedor, produto e serviço.
+- [x] Mesma pessoa cadastrada uma única vez com os papéis Cliente e Fornecedor.
+- [x] Orçamento e pedido para a mesma contraparte com sequências ORC/PC independentes.
 - [x] Orçamento e pedido de compra com múltiplos itens.
 - [x] Edição e autosave local de rascunho, com aviso antes de sair.
 - [x] Duplicação idempotente, confirmação explícita e histórico.
@@ -18,6 +20,7 @@
 - [x] Labels, foco visível, navegação por teclado e regiões de status/alerta.
 - [x] Estados de carregamento, erro, sucesso e vazio.
 - [x] Máscaras de CPF/CNPJ e telefone; moeda e datas em padrão brasileiro na exibição.
+- [x] CPF/CNPJ brasileiro validado, endereço estruturado e preenchimento por CEP.
 - [x] Respeito a `prefers-reduced-motion`.
 
 ## Segurança
@@ -35,6 +38,7 @@
 - [x] A4, paginação, cabeçalho repetido, textos longos e múltiplos itens.
 - [x] Logotipo opcional validado, BRL, datas, totais e rodapé de validação.
 - [x] Teste automatizado de documento com várias páginas.
+- [x] Testes de caracteres acentuados, datas inválidas e validade em `DD/MM/AAAA`.
 
 ## Comandos de aceite
 

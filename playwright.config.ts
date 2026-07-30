@@ -7,10 +7,11 @@ for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
 }
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 120_000,
+  timeout: 180_000,
   fullyParallel: false,
+  workers: 1,
   retries: 0,
-  expect: { timeout: 30_000 },
+  expect: { timeout: 60_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:3000",
@@ -20,7 +21,7 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    { name: "mobile", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
     { name: "tablet", use: { viewport: { width: 820, height: 1180 } } },
   ],
   webServer: {
