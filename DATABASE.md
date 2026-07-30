@@ -1,7 +1,7 @@
 # Banco de dados
 
-As migrations versionadas criam organizações, perfis, papéis, clientes, fornecedores, catálogo, documentos e itens, sequências, conversas, mensagens, arquivos, eventos e auditoria. Toda entidade comercial possui `organization_id`; RLS usa membership e papéis. Há índices, triggers de atualização, onboarding transacional e numeração concorrente.
+O Supabase de desenvolvimento executa PostgreSQL 17.6. As três migrations versionadas foram aplicadas em 29/07/2026 e registradas em `ember_migrations.applied`. A tabela legada `public.websites` foi removida.
 
-A migration `202607280000_remove_legacy.sql` remove somente `public.websites`, tabela do produto descontinuado. O schema REST remoto foi inspecionado em 29/07/2026 e continha apenas essa tabela.
+Estado validado: 14 tabelas de domínio, RLS habilitado nas 14, 43 policies públicas/Storage, 5 funções, 2 triggers, 25 índices e 2 buckets privados. O modelo cobre organizações, perfis, papéis, clientes, fornecedores, catálogo, documentos/itens/sequências, conversas, mensagens, arquivos, eventos e auditoria.
 
-As migrations novas ainda não foram aplicadas: o host direto fornece somente IPv6 e o pooler regional recusou a autenticação da URI atual. O runner `npm run db:migrate` é transacional e registra arquivos em `ember_migrations.applied`.
+O teste integrado autenticou duas organizações diferentes e comprovou bloqueio de leitura, atualização e download cruzados. Também criou orçamento e pedido, confirmou ambos, registrou quatro eventos e armazenou um PDF privado.

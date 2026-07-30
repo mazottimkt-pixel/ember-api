@@ -2,13 +2,13 @@
 
 ## Núcleo do MVP
 
-- [x] Backup, arquitetura, domínio, migrations, painel e testes unitários.
-- [x] Código de autenticação, login, logout, sessão e onboarding transacional.
+- [x] Backup, arquitetura, domínio e migrations versionadas.
+- [x] Supabase Auth, login, logout, sessão e onboarding transacional.
+- [x] PostgreSQL multiempresa com RLS, funções, triggers, índices e Storage privado.
 - [x] CRUD persistido de clientes, fornecedores e catálogo.
 - [x] Criação, duplicação, confirmação, histórico e PDF privado de documentos.
-- [x] API Auth real validada; proprietário de teste confirmado.
-- [ ] Aplicar migrations e validar ponta a ponta no Supabase remoto — bloqueado pela conexão SQL IPv4.
-- [ ] Executar testes reais de RLS com duas organizações após aplicar migrations.
-- [ ] Edição completa de múltiplos itens e identidade visual avançada no PDF.
+- [x] Teste integrado real com duas organizações, isolamento RLS e Storage.
+- [ ] Edição avançada de rascunhos com múltiplos itens.
+- [ ] Identidade visual avançada e testes E2E de navegador.
 
 OpenAI, Meta/WhatsApp, domínio e produção permanecem fora desta etapa.

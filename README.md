@@ -23,4 +23,6 @@ Validação completa: `npm run check`. Aplique `supabase/migrations/202607290001
 - webhook oficial da Meta com verificação de challenge, assinatura e chave idempotente no banco.
 - provedores de IA e WhatsApp explicitamente mockados sem credenciais.
 
-Consulte [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [ROADMAP.md](ROADMAP.md), [docs/WHATSAPP.md](docs/WHATSAPP.md), [docs/DECISIONS.md](docs/DECISIONS.md) e [PENDENCIAS_DO_PROPRIETARIO.md](PENDENCIAS_DO_PROPRIETARIO.md).
+Banco remoto: `npm run db:inspect`, `npm run db:validate` e `npm run test:integration`.
+
+Consulte [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [ROADMAP.md](ROADMAP.md), [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md), [docs/WHATSAPP.md](docs/WHATSAPP.md), [docs/DECISIONS.md](docs/DECISIONS.md) e [PENDENCIAS_DO_PROPRIETARIO.md](PENDENCIAS_DO_PROPRIETARIO.md).

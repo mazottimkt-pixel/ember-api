@@ -11,7 +11,9 @@
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "db:inspect": "node scripts/db-inspect.mjs",
-    "db:migrate": "node scripts/db-migrate.mjs --apply"
+    "db:migrate": "node scripts/db-migrate.mjs --apply",
+    "db:validate": "node scripts/db-validate.mjs",
+    "test:integration": "node scripts/integration-flow.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
