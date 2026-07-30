@@ -1,11 +1,7 @@
 # Segurança
 
-O MVP usa validação Zod, autenticação Supabase, RLS por organização, Storage privado, assinatura HMAC do webhook, idempotência por ID oficial, uploads limitados e mocks que não enviam dados. Nunca registre tokens, payloads comerciais completos ou dados sensíveis.
+O MVP usa validação Zod, Supabase Auth, RLS por organização, Storage privado, confirmação explícita, idempotência e limites de upload. Segredos permanecem somente em `.env.local`, ignorado pelo Git.
 
 ## Dependências
 
-Em 29/07/2026, `npm audit --omit=dev` reportou três alertas altos transitivos em `postcss` e `sharp`, trazidos pelo Next.js 16.2.11. O audit sugeriu downgrade incompatível para Next 9.3.3; por isso a correção automática não foi aplicada. Reavaliar quando houver uma versão compatível corrigida do Next e antes de qualquer deploy.
-
-## Relato
-
-Não publique vulnerabilidades. Envie um relato privado ao proprietário com reprodução, impacto e versão afetada.
+Em 29/07/2026, Next.js e `eslint-config-next` foram atualizados de 16.2.11 para 16.2.12. PostCSS foi fixado com override compatível em 8.5.25, eliminando seus alertas de produção. Permanece o alerta transitivo de Sharp 0.34.5: a correção 0.35 está fora da faixa principal declarada pelo Next. Nenhum downgrade, override de major ou `audit fix --force` foi aplicado.

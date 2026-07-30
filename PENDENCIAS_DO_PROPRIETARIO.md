@@ -1,11 +1,12 @@
 # Pendências do proprietário
 
-- Criar um projeto Supabase não produtivo e fornecer URL/chaves; definir e-mail inicial do proprietário.
-- Criar/validar conta Meta Business, WABA e número; fornecer tokens de sandbox, App Secret e verify token.
-- Fornecer chave OpenAI, modelos aprovados e limites mensais de uso.
-- Enviar razão social, CNPJ, endereço, logotipo, cores e dados bancários que devam constar nos documentos.
-- Definir domínio futuro e textos jurídicos: termos, privacidade, retenção/LGPD e consentimento para áudios.
-- Decidir regras comerciais padrão: validade, garantia, recorrência, numeração e arredondamento.
-- Escolher provedor/fila de jobs e política de retenção de PDFs, mensagens, áudios e auditoria.
+## Necessária agora
 
-Nenhum item acima foi acessado, contratado, publicado ou alterado nesta sessão.
+- Substituir `SUPABASE_DB_URL` pela URI de **Session pooler/Supavisor IPv4** copiada do painel Supabase em `Connect` → `Session pooler`, com a senha atual e caracteres especiais codificados pela própria URI.
+
+O Supabase Auth já está acessível e o proprietário de teste já existe. Nenhuma senha foi alterada.
+
+## Futuro — não conectar agora
+
+- Meta/WhatsApp, OpenAI, domínio, identidade visual definitiva e textos jurídicos.
+- Regras comerciais padrão e política de retenção/auditoria.

@@ -1,7 +1,7 @@
 # Banco de dados
 
-A migration inicial cria organizações, perfis, membros e papéis; clientes, fornecedores e catálogo; documentos, itens e sequências; conversas, mensagens e arquivos; eventos e auditoria. Toda entidade comercial carrega `organization_id`. Políticas RLS usam `auth.uid()` e associação em `organization_members`.
+As migrations versionadas criam organizações, perfis, papéis, clientes, fornecedores, catálogo, documentos e itens, sequências, conversas, mensagens, arquivos, eventos e auditoria. Toda entidade comercial possui `organization_id`; RLS usa membership e papéis. Há índices, triggers de atualização, onboarding transacional e numeração concorrente.
 
-Valores monetários usam `numeric`; o servidor calcula em centavos antes de persistir. `messages.whatsapp_message_id` é único para idempotência. Documentos usam exclusão lógica e snapshots da contraparte para preservar histórico. PDFs e logotipos ficam em buckets privados com referência no banco.
+A migration `202607280000_remove_legacy.sql` remove somente `public.websites`, tabela do produto descontinuado. O schema REST remoto foi inspecionado em 29/07/2026 e continha apenas essa tabela.
 
-Antes de produção, executar os testes de isolamento com dois usuários e duas organizações em um projeto Supabase descartável e revisar policies de Storage específicas por prefixo de organização.
+As migrations novas ainda não foram aplicadas: o host direto fornece somente IPv6 e o pooler regional recusou a autenticação da URI atual. O runner `npm run db:migrate` é transacional e registra arquivos em `ember_migrations.applied`.

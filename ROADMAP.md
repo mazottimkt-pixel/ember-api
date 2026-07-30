@@ -1,14 +1,14 @@
 # Roadmap
 
-## MVP local — em andamento
+## Núcleo do MVP
 
-- [x] Backup do produto antigo, arquitetura, domínio, migration RLS, painel base, PDF inicial, webhook e mocks.
-- [x] Testes unitários de cálculo, numeração, schema, IA, PDF e assinatura.
-- [ ] Conectar Supabase real e completar onboarding/autenticação ponta a ponta.
-- [ ] Persistir CRUDs, edição/duplicação e download assinado.
-- [ ] Conectar OpenAI e Meta em sandbox; adicionar worker/fila e testes integrados de idempotência/RLS.
-- [ ] Completar identidade visual no PDF, observabilidade sem dados sensíveis e testes E2E.
+- [x] Backup, arquitetura, domínio, migrations, painel e testes unitários.
+- [x] Código de autenticação, login, logout, sessão e onboarding transacional.
+- [x] CRUD persistido de clientes, fornecedores e catálogo.
+- [x] Criação, duplicação, confirmação, histórico e PDF privado de documentos.
+- [x] API Auth real validada; proprietário de teste confirmado.
+- [ ] Aplicar migrations e validar ponta a ponta no Supabase remoto — bloqueado pela conexão SQL IPv4.
+- [ ] Executar testes reais de RLS com duas organizações após aplicar migrations.
+- [ ] Edição completa de múltiplos itens e identidade visual avançada no PDF.
 
-## Depois do MVP
-
-Templates aprovados da Meta, notificações, métricas operacionais e integrações ERP selecionadas. Fora de escopo: pagamentos, notas fiscais, marketplace, CRM completo e aplicativos nativos.
+OpenAI, Meta/WhatsApp, domínio e produção permanecem fora desta etapa.
