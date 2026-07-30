@@ -15,6 +15,7 @@
     "db:validate": "node scripts/db-validate.mjs",
     "test:integration": "node scripts/integration-flow.mjs",
     "test:contacts": "node scripts/contact-document-flow.mjs",
+    "test:auth-rls:stability": "node scripts/auth-rls-stability.mjs 20",
     "db:seed": "node scripts/seed-demo.mjs",
     "test:e2e": "playwright test",
     "test:e2e:desktop": "playwright test --project=desktop"

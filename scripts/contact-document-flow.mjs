@@ -1,20 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
 import { randomBytes, randomUUID } from "node:crypto";
 import { loadLocalEnv } from "./load-env.mjs";
+import { authenticateTestUser, createTestClients, ensureTestUser } from "./auth-test-helpers.mjs";
 
 const env = loadLocalEnv();
-const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const owner = createClient(
-  env.NEXT_PUBLIC_SUPABASE_URL,
-  env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  options,
-);
-const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, options);
-const { error: loginError } = await owner.auth.signInWithPassword({
-  email: env.TEST_OWNER_EMAIL,
-  password: env.TEST_OWNER_PASSWORD,
-});
-if (loginError) throw new Error("Falha no login de teste");
+const { admin, createAnon } = createTestClients(env);
+const owner = await authenticateTestUser(env, createAnon, env.TEST_OWNER_EMAIL, env.TEST_OWNER_PASSWORD);
 const { data: membership } = await owner
   .from("organization_members")
   .select("organization_id")
@@ -23,12 +13,13 @@ const organizationId = membership.organization_id;
 const projectRef = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
 const secondEmail = `rls-test-${projectRef}@example.invalid`;
 const secondPassword = `T!${randomBytes(18).toString("base64url")}`;
-const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 100 });
-let secondUser = listed.data.users.find((entry) => entry.email === secondEmail);
-if (!secondUser) secondUser = (await admin.auth.admin.createUser({ email: secondEmail, password: secondPassword, email_confirm: true })).data.user;
-else await admin.auth.admin.updateUserById(secondUser.id, { password: secondPassword });
-const second = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, options);
-await second.auth.signInWithPassword({ email: secondEmail, password: secondPassword });
+const secondUser = await ensureTestUser(admin, secondEmail, secondPassword);
+let second;
+try { second = await authenticateTestUser(env, createAnon, secondEmail, secondPassword); }
+catch {
+  await admin.auth.admin.updateUserById(secondUser.id, { password: secondPassword });
+  second = await authenticateTestUser(env, createAnon, secondEmail, secondPassword);
+}
 let { data: secondMembership } = await second.from("organization_members").select("organization_id").maybeSingle();
 if (!secondMembership) { await second.rpc("create_organization", { org_name: "RLS Isolation Test" }); secondMembership = (await second.from("organization_members").select("organization_id").single()).data; }
 const taxId = "05501893193";
