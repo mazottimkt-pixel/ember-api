@@ -55,7 +55,7 @@ export default async function Dashboard() {
         <div className="card">
           <span className="muted">Ações rápidas</span>
           <div style={{ marginTop: 12 }}>
-            <Link href="/customers">Novo cliente →</Link>
+            <Link href="/contacts">Novo cadastro →</Link>
           </div>
         </div>
       </section>

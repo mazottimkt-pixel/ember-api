@@ -201,6 +201,7 @@ export async function duplicateDocument(formData: FormData) {
       status: "draft",
       customer_id: source.customer_id,
       supplier_id: source.supplier_id,
+      counterparty_id: source.counterparty_id,
       counterparty_snapshot: source.counterparty_snapshot,
       subtotal: source.subtotal,
       discount: source.discount,

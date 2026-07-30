@@ -1,8 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { saveDocumentDraft } from "@/app/(dashboard)/document-editor-actions";
 import { SubmitButton } from "./ui";
-type Party = { id: string; name: string };
+type Party = {
+  id: string;
+  name: string;
+  isCustomer: boolean;
+  isSupplier: boolean;
+};
 type Item = {
   description: string;
   quantity: number;
@@ -24,15 +30,15 @@ type Initial = {
   notes: string;
 };
 export function DocumentForm({
-  customers,
-  suppliers,
+  contacts,
   initial,
 }: {
-  customers: Party[];
-  suppliers: Party[];
+  contacts: Party[];
   initial: Initial;
 }) {
-  const key = `ember-draft-${initial.id ?? "new"}`;
+  const currentYear = new Date().getFullYear();
+  const router = useRouter();
+  const key = `ember-draft-${initial.id ?? initial.requestId}`;
   const [form, setForm] = useState<Initial>(() => {
     if (typeof window !== "undefined" && !initial.id) {
       const cached = localStorage.getItem(key);
@@ -64,7 +70,9 @@ export function DocumentForm({
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
-  const parties = form.type === "quote" ? customers : suppliers;
+  const parties = contacts.filter((contact) =>
+    form.type === "quote" ? contact.isCustomer : contact.isSupplier,
+  );
   const total = useMemo(
     () =>
       form.items.reduce(
@@ -93,9 +101,14 @@ export function DocumentForm({
         formData.set("items_json", JSON.stringify(form.items));
         setSubmitError(null);
         try {
-          await saveDocumentDraft(formData);
+          const result = await saveDocumentDraft(formData);
+          if (!result.ok) {
+            setSubmitError(result.message);
+            return;
+          }
           localStorage.removeItem(key);
           setDirty(false);
+          router.push(`/documents/${result.documentId}?saved=1`);
         } catch {
           setSubmitError(
             "Não foi possível salvar. Revise os campos e tente novamente.",
@@ -121,6 +134,7 @@ export function DocumentForm({
             change({
               type: e.target.value as Initial["type"],
               counterpartyId: "",
+              requestId: crypto.randomUUID(),
             })
           }
         >
@@ -276,6 +290,8 @@ export function DocumentForm({
           id="validity"
           name="validity"
           type="date"
+          min={`${currentYear}-01-01`}
+          max={`${currentYear + 10}-12-31`}
           value={form.validity}
           onChange={(e) => change({ validity: e.target.value })}
           required={form.type === "quote"}

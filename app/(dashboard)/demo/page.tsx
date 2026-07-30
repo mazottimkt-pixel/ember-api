@@ -11,12 +11,14 @@ export default async function Demo() {
     { count: pdfs },
   ] = await Promise.all([
     supabase
-      .from("customers")
+      .from("business_contacts")
       .select("id", { head: true, count: "exact" })
+      .eq("is_customer", true)
       .is("deleted_at", null),
     supabase
-      .from("suppliers")
+      .from("business_contacts")
       .select("id", { head: true, count: "exact" })
+      .eq("is_supplier", true)
       .is("deleted_at", null),
     supabase
       .from("catalog_items")
@@ -42,12 +44,12 @@ export default async function Demo() {
     {
       label: "Cliente cadastrado",
       ok: (customers ?? 0) > 0,
-      href: "/customers",
+      href: "/contacts?role=customer",
     },
     {
       label: "Fornecedor cadastrado",
       ok: (suppliers ?? 0) > 0,
-      href: "/suppliers",
+      href: "/contacts?role=supplier",
     },
     {
       label: "Produto ou serviço no catálogo",
