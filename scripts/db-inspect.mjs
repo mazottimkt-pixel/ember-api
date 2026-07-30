@@ -8,10 +8,8 @@ for (const key of required) if (!process.env[key]) throw new Error(`Variável au
 const match = process.env.SUPABASE_DB_URL.trim().match(/^postgres(?:ql)?:\/\/([^:]+):(.+)@([^:]+):(\d+)\/([^?\s]+)(?:\?.*)?$/);
 if (!match) throw new Error("SUPABASE_DB_URL não está no formato PostgreSQL esperado");
 const [, user, rawPassword, host, port, database] = match;
-const password = process.argv.includes("--raw-password") ? rawPassword : (rawPassword.startsWith("[") && rawPassword.endsWith("]") ? rawPassword.slice(1, -1) : rawPassword);
-const direct = process.argv.includes("--direct");
-const projectRef = host.split(".")[1];
-const client = new pg.Client(direct ? { user, password, host, port: Number(port), database, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 12000 } : { user:`postgres.${projectRef}`,password,host:"aws-0-sa-east-1.pooler.supabase.com",port:5432,database,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:12000 });
+const unwrapped = rawPassword.startsWith("[") && rawPassword.endsWith("]") ? rawPassword.slice(1, -1) : rawPassword;
+const client = new pg.Client({ user:decodeURIComponent(user),password:decodeURIComponent(unwrapped),host,port:Number(port),database:decodeURIComponent(database),ssl:{rejectUnauthorized:false},connectionTimeoutMillis:12000 });
 try {
   await client.connect();
   const version = await client.query("select current_database() database, current_user role, current_setting('server_version') version");
