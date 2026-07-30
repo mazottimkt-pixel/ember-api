@@ -1,0 +1,2 @@
+import {createHmac} from "node:crypto";import {describe,expect,it} from "vitest";import {verifyMetaSignature} from "@/lib/whatsapp/signature";
+describe("webhook signature",()=>{it("aceita apenas assinatura correta",()=>{const body='{"ok":true}',secret="secret",signature=`sha256=${createHmac("sha256",secret).update(body).digest("hex")}`;expect(verifyMetaSignature(body,signature,secret)).toBe(true);expect(verifyMetaSignature(body,"sha256=00",secret)).toBe(false)})});

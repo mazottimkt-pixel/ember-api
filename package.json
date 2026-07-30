@@ -1,19 +1,24 @@
 {
-  "name": "ember-api",
-  "version": "1.0.1",
+  "name": "ember-comercial",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
     "next": "16.2.11",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -23,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

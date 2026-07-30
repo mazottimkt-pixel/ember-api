@@ -1,0 +1,2 @@
+import {describe,expect,it} from "vitest";import {generateDocumentPdf} from "@/lib/pdf/generate";
+describe("PDF",()=>{it("gera um PDF válido",async()=>{const bytes=await generateDocumentPdf({type:"quote",counterpartyName:"Alfa",items:[{description:"Manutenção",quantity:12,unit:"un",unitPrice:180,discount:0}],shipping:0,deadline:"5 dias",paymentTerms:"50/50",validity:"15 dias"},{organizationName:"Ember",number:"ORC-2026-000001",issuerName:"Ana",validationCode:"abc"});expect(Buffer.from(bytes).subarray(0,4).toString()).toBe("%PDF")})});

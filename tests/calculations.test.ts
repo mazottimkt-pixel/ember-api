@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest";
+import { calculateDocument } from "@/lib/domain/calculations";
+describe("calculateDocument",()=>{it("calcula em centavos subtotal, desconto, frete e total",()=>{expect(calculateDocument([{description:"Serviço",quantity:12,unit:"un",unitPrice:180,discount:20}],30)).toEqual({items:[{description:"Serviço",quantity:12,unit:"un",unitPrice:180,discount:20,lineTotal:2140}],subtotal:2160,discount:20,shipping:30,total:2170})});it("rejeita desconto maior que o item",()=>expect(()=>calculateDocument([{description:"x",quantity:1,unit:"un",unitPrice:10,discount:11}])).toThrow())});
