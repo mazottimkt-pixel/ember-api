@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (provider.name === "fallback") return NextResponse.json({ error: "Configure a OpenAI para transcrever áudios." }, { status: 503 });
     const transcript = await provider.transcribe(audio);
     if (!transcript || transcript.length > 8000) throw new Error("INVALID_TRANSCRIPT");
-    return NextResponse.json({ transcript });
+    return NextResponse.json({ transcript, metrics: provider.getLastMetrics?.() });
   } catch (error) {
     console.error("agent.transcription.failed", { code: error instanceof Error ? error.message : "UNKNOWN", organizationId, size: audio.size, type: audio.type });
     if (error instanceof Error && error.message === "OPENAI_TRANSCRIPTION_MODEL_UNAVAILABLE") {

@@ -13,7 +13,7 @@ export async function GET() {
   }
   const provider = new OpenAIProvider();
   const [textAvailable, transcriptionAvailable] = await Promise.all([
-    provider.modelAvailable(textModel).catch(() => false),
+    provider.textModelUsable(textModel).catch(() => false),
     provider.modelAvailable(transcriptionModel).catch(() => false),
   ]);
   return NextResponse.json({ configured: true, text: { id: textModel, available: textAvailable }, transcription: { id: transcriptionModel, available: transcriptionAvailable }, provider: provider.name });

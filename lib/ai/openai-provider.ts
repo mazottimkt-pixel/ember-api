@@ -2,14 +2,15 @@ import "server-only";
 import OpenAI, { toFile } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { agentDecisionSchema, emptyAgentDraft, type AgentDecision, type AgentDraft } from "./contracts";
-import type { AgentAIProvider } from "./provider";
+import type { AgentAIProvider, ProviderMetrics } from "./provider";
 
 const instructions = `Você é o agente comercial do Ember Comercial. Fale em português brasileiro, de modo formal, cordial e objetivo. Use frases claras e curtas. Faça somente uma pergunta por vez. Extraia exclusivamente dados informados pelo usuário e preserve os dados válidos do rascunho atual. Nunca invente dados. Confirme valores e datas. Não dê parecer jurídico ou fiscal. Informe quando precisar de intervenção humana. Um documento definitivo sempre exige confirmação explícita e validação do servidor.`;
+const modelAvailability = new Map<string, { available: boolean; checkedAt: number }>();
 
 export class OpenAIProvider implements AgentAIProvider {
   readonly name = "openai";
   private readonly client: OpenAI;
-  private readonly availability = new Map<string, { available: boolean; checkedAt: number }>();
+  private lastMetrics?: ProviderMetrics;
 
   constructor(apiKey = process.env.OPENAI_API_KEY) {
     if (!apiKey) throw new Error("OPENAI_API_KEY_MISSING");
@@ -18,24 +19,35 @@ export class OpenAIProvider implements AgentAIProvider {
   }
 
   async modelAvailable(model: string): Promise<boolean> {
-    const cached = this.availability.get(model);
+    const cached = modelAvailability.get(model);
     if (cached && Date.now() - cached.checkedAt < 5 * 60_000) return cached.available;
     try {
       await this.client.models.retrieve(model);
-      this.availability.set(model, { available: true, checkedAt: Date.now() });
+      modelAvailability.set(model, { available: true, checkedAt: Date.now() });
       return true;
     } catch (error) {
       const status = error instanceof OpenAI.APIError ? error.status : undefined;
       if (status === 400 || status === 403 || status === 404) {
-        this.availability.set(model, { available: false, checkedAt: Date.now() });
+        modelAvailability.set(model, { available: false, checkedAt: Date.now() });
         return false;
       }
       throw error;
     }
   }
 
+  async textModelUsable(model = process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini"): Promise<boolean> {
+    try {
+      if (!(await this.modelAvailable(model))) return false;
+      await this.client.responses.create({ model, input: "Responda somente: OK", max_output_tokens: 8, store: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async analyze(input: string, current: AgentDraft): Promise<AgentDecision> {
     const model = process.env.OPENAI_TEXT_MODEL || "gpt-4o-mini";
+    const startedAt = Date.now();
     try {
       if (!(await this.modelAvailable(model))) throw new Error("OPENAI_TEXT_MODEL_UNAVAILABLE");
       const response = await this.client.responses.parse({
@@ -47,9 +59,18 @@ export class OpenAIProvider implements AgentAIProvider {
         text: { format: zodTextFormat(agentDecisionSchema, "ember_agent_decision") },
       });
       if (!response.output_parsed) throw new Error("OPENAI_INVALID_OUTPUT");
+      const usage = response.usage;
+      this.lastMetrics = { model, latencyMs: Date.now() - startedAt, inputTokens: usage?.input_tokens, outputTokens: usage?.output_tokens, totalTokens: usage?.total_tokens, estimatedCostUsd: usage ? (usage.input_tokens * 0.15 + usage.output_tokens * 0.60) / 1_000_000 : undefined };
       return agentDecisionSchema.parse(response.output_parsed);
-    } catch {
+    } catch (error) {
+      console.error("openai.analysis.fallback", {
+        model,
+        status: error instanceof OpenAI.APIError ? error.status : undefined,
+        code: error instanceof OpenAI.APIError ? error.code : undefined,
+        kind: error instanceof Error ? error.name : "UnknownError",
+      });
       const fallback = new FallbackProvider();
+      this.lastMetrics = { model: "fallback", latencyMs: Date.now() - startedAt, estimatedCostUsd: 0 };
       const result = await fallback.analyze(input, current);
       return { ...result, reply: `A inteligência artificial está indisponível ou o modelo configurado não está autorizado. Estou usando o modo local. ${result.reply}` };
     }
@@ -57,6 +78,7 @@ export class OpenAIProvider implements AgentAIProvider {
 
   async transcribe(audio: File): Promise<string> {
     const model = process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
+    const startedAt = Date.now();
     if (!(await this.modelAvailable(model))) throw new Error("OPENAI_TRANSCRIPTION_MODEL_UNAVAILABLE");
     const file = await toFile(Buffer.from(await audio.arrayBuffer()), audio.name || "audio.webm", { type: audio.type });
     const result = await this.client.audio.transcriptions.create({
@@ -65,8 +87,12 @@ export class OpenAIProvider implements AgentAIProvider {
       language: "pt",
       response_format: "json",
     });
+    if (result.usage?.type === "tokens") this.lastMetrics = { model, latencyMs: Date.now() - startedAt, inputTokens: result.usage.input_tokens, outputTokens: result.usage.output_tokens, totalTokens: result.usage.total_tokens, estimatedCostUsd: (result.usage.input_tokens * 1.25 + result.usage.output_tokens * 5) / 1_000_000 };
+    else this.lastMetrics = { model, latencyMs: Date.now() - startedAt };
     return result.text.trim();
   }
+
+  getLastMetrics() { return this.lastMetrics; }
 }
 
 export class FallbackProvider implements AgentAIProvider {

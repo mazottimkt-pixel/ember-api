@@ -3,7 +3,8 @@ import { useRef, useState } from "react";
 import type { AgentDraft, AgentState } from "@/lib/ai/contracts";
 
 type Turn = { role: "user" | "agent"; text: string };
-type AgentResponse = { conversationId: string; reply: string; state: AgentState; draft: AgentDraft; provider: string; pdfUrl?: string; error?: string };
+type Metrics = { model: string; latencyMs: number; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedCostUsd?: number };
+type AgentResponse = { conversationId: string; reply: string; state: AgentState; draft: AgentDraft; provider: string; metrics?: Metrics; pdfUrl?: string; error?: string };
 
 export function AgentLab() {
   const [conversationId, setConversationId] = useState<string>();
@@ -12,6 +13,7 @@ export function AgentLab() {
   const [draft, setDraft] = useState<AgentDraft>();
   const [state, setState] = useState<AgentState>("menu");
   const [provider, setProvider] = useState("-");
+  const [metrics, setMetrics] = useState<Metrics>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [pdfUrl, setPdfUrl] = useState<string>();
@@ -28,7 +30,7 @@ export function AgentLab() {
       const response = await fetch("/api/agent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId, idempotencyKey: crypto.randomUUID(), text: message, action }) });
       const data = await response.json() as AgentResponse;
       if (!response.ok) throw new Error(data.error || "Não foi possível processar a mensagem.");
-      setConversationId(data.conversationId); setDraft(data.draft); setState(data.state); setProvider(data.provider); setPdfUrl(data.pdfUrl);
+      setConversationId(data.conversationId); setDraft(data.draft); setState(data.state); setProvider(data.provider); setMetrics(data.metrics); setPdfUrl(data.pdfUrl);
       setTurns(v => [...v, { role: "agent", text: data.reply }]); setText("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível processar a mensagem."); }
     finally { setPending(false); }
@@ -86,6 +88,6 @@ export function AgentLab() {
         {pdfUrl && <a className="button secondary" href={pdfUrl}>Baixar PDF</a>}
       </div>
     </section>
-    <aside className="panel agent-inspector"><h2>Estado persistido</h2><p><strong>Estado:</strong> {state}</p><p><strong>Provider:</strong> {provider}</p><button className="button secondary" type="button" onClick={verifyModels}>Verificar modelos configurados</button><p className="help" aria-live="polite">{modelStatus}</p><pre>{JSON.stringify(draft ?? {}, null, 2)}</pre><p className="help">A chave da OpenAI permanece somente no servidor. Nenhuma ação definitiva é executada sem confirmação.</p></aside>
+    <aside className="panel agent-inspector"><h2>Estado persistido</h2><p><strong>Estado:</strong> {state}</p><p><strong>Provider:</strong> {provider}</p>{metrics && <p className="help"><strong>Métricas:</strong> {metrics.model} · {metrics.latencyMs} ms · {metrics.totalTokens ?? "—"} tokens · US$ {(metrics.estimatedCostUsd ?? 0).toFixed(6)}</p>}<button className="button secondary" type="button" onClick={verifyModels}>Verificar modelos configurados</button><p className="help" aria-live="polite">{modelStatus}</p><pre>{JSON.stringify(draft ?? {}, null, 2)}</pre><p className="help">A chave da OpenAI permanece somente no servidor. Nenhuma ação definitiva é executada sem confirmação.</p></aside>
   </div>;
 }

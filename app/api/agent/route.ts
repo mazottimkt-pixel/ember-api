@@ -47,6 +47,7 @@ export async function POST(request: Request) {
   const current = agentDraftSchema.catch(emptyAgentDraft()).parse(conversation.context.draft);
   let draft = current; let state: AgentState = conversation.state; let reply = ""; let provider = "server";
   let documentId = typeof conversation.context.documentId === "string" ? conversation.context.documentId : undefined;
+  let metrics: ReturnType<NonNullable<import("@/lib/ai/provider").AgentAIProvider["getLastMetrics"]>>;
   let documents: unknown[] | undefined;
   const ctx: AgentToolContext = { organizationId, supabase, userId: user.id };
   try {
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       reply = `Documento ${result.number} confirmado. O PDF está pronto para download.`;
     } else {
       const ai = getAgentAIProvider(); provider = ai.name;
-      const decision = await ai.analyze(input.text, current); draft = agentDraftSchema.parse(decision.draft);
+      const decision = await ai.analyze(input.text, current); metrics = ai.getLastMetrics?.(); draft = agentDraftSchema.parse(decision.draft);
       if (decision.intent === "cancel") { state = "cancelled"; reply = "Operação cancelada. Nenhum documento foi confirmado."; }
       else if (draft.type === "document_search" && draft.documentQuery) {
         documents = await queryDocuments(ctx, draft.documentQuery); state = "collecting";
@@ -75,10 +76,10 @@ export async function POST(request: Request) {
     console.error("agent.process.failed", { code: error instanceof Error ? error.message : "UNKNOWN", organizationId, conversationId: conversation.id });
     state = "error"; reply = publicError(error);
   }
-  const payload = { reply, state, draft, documentId, documents, provider, pdfUrl: state === "confirmed" && documentId ? `/api/documents/${documentId}/pdf` : undefined };
+  const payload = { reply, state, draft, documentId, documents, provider, metrics, pdfUrl: state === "confirmed" && documentId ? `/api/documents/${documentId}/pdf` : undefined };
   await supabase.from("conversations").update({ state, context: { draft, documentId }, updated_at: new Date().toISOString() }).eq("id", conversation.id).eq("organization_id", organizationId);
   await supabase.from("messages").update({ processing_status: "processed", content: { text: input.text, action: input.action, response: payload } }).eq("whatsapp_message_id", key).eq("organization_id", organizationId);
   await supabase.from("messages").insert({ organization_id: organizationId, conversation_id: conversation.id, whatsapp_message_id: `${key}:response`, direction: "outbound", kind: "text", content: { text: reply }, processing_status: "processed" });
-  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: `agent.${input.action}`, entity_type: "conversation", entity_id: conversation.id, metadata: { state, provider, idempotencyKey: input.idempotencyKey } });
+  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: `agent.${input.action}`, entity_type: "conversation", entity_id: conversation.id, metadata: { state, provider, idempotencyKey: input.idempotencyKey, metrics } });
   return NextResponse.json({ conversationId: conversation.id, ...payload });
 }
