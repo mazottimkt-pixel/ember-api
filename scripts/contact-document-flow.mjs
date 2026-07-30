@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { loadLocalEnv } from "./load-env.mjs";
 
 const env = loadLocalEnv();
@@ -9,6 +9,7 @@ const owner = createClient(
   env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   options,
 );
+const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, options);
 const { error: loginError } = await owner.auth.signInWithPassword({
   email: env.TEST_OWNER_EMAIL,
   password: env.TEST_OWNER_PASSWORD,
@@ -19,6 +20,17 @@ const { data: membership } = await owner
   .select("organization_id")
   .single();
 const organizationId = membership.organization_id;
+const projectRef = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
+const secondEmail = `rls-test-${projectRef}@example.invalid`;
+const secondPassword = `T!${randomBytes(18).toString("base64url")}`;
+const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 100 });
+let secondUser = listed.data.users.find((entry) => entry.email === secondEmail);
+if (!secondUser) secondUser = (await admin.auth.admin.createUser({ email: secondEmail, password: secondPassword, email_confirm: true })).data.user;
+else await admin.auth.admin.updateUserById(secondUser.id, { password: secondPassword });
+const second = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, options);
+await second.auth.signInWithPassword({ email: secondEmail, password: secondPassword });
+let { data: secondMembership } = await second.from("organization_members").select("organization_id").maybeSingle();
+if (!secondMembership) { await second.rpc("create_organization", { org_name: "RLS Isolation Test" }); secondMembership = (await second.from("organization_members").select("organization_id").single()).data; }
 const taxId = "05501893193";
 const name = "MATHEUS YAN TEODORO GONÇALVES MAZOTTI";
 let { data: contact } = await owner
@@ -93,12 +105,16 @@ async function create(type) {
 
 const quote = await create("quote");
 const purchase = await create("purchase_order");
+const foreignRead = await second.from("business_contacts").select("id").eq("id", contact.id);
+const crossTenantInsert = await second.from("business_contacts").insert({ organization_id: organizationId, legal_name: "Violação", person_type: "individual", is_customer: true });
 const assertions = {
   sameContactHasBothRoles: contact.is_customer && contact.is_supplier,
   sameContactUsedByBoth: quote.counterparty_id === purchase.counterparty_id,
   quoteSequence: quote.number.startsWith("ORC-"),
   purchaseSequence: purchase.number.startsWith("PC-"),
   independentSequences: quote.number !== purchase.number,
+  foreignContactHidden: !foreignRead.error && foreignRead.data.length === 0,
+  crossTenantInsertBlocked: Boolean(crossTenantInsert.error),
 };
 if (Object.values(assertions).some((value) => !value))
   throw new Error("Falha no fluxo unificado");
