@@ -53,6 +53,7 @@ test.describe("painel autenticado", () => {
       "/contacts",
       "/catalog",
       "/conversations",
+      "/agent-lab",
       "/settings",
     ]) {
       const response = await page.goto(route);
@@ -68,6 +69,14 @@ test.describe("painel autenticado", () => {
       path: `test-results/visual/${testInfo.project.name}-contacts.png`,
       fullPage: true,
     });
+  });
+
+  test("laboratório do agente persiste conversa com fallback seguro", async ({ page }) => {
+    await page.goto("/agent-lab");
+    await page.getByLabel("Mensagem ou transcrição").fill("Quero criar um pedido de compra");
+    await page.getByRole("button", { name: "Enviar", exact: true }).click();
+    await expect(page.getByText(/Vou reunir os dados|Qual é o nome do fornecedor/i)).toBeVisible();
+    await expect(page.getByText(/collecting/i)).toBeVisible();
   });
 
   test("mesma contraparte gera ORC e PC com sequências independentes", async ({

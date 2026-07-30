@@ -8,6 +8,7 @@ const links = [
   ["/contacts", "Cadastros"],
   ["/catalog", "Produtos e serviços"],
   ["/conversations", "Conversas"],
+  ["/agent-lab", "Laboratório do agente"],
   ["/settings", "Configurações"],
 ];
 export function Sidebar() {

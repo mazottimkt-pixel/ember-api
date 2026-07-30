@@ -1,5 +1,11 @@
 # Arquitetura
 
+## Camada de inteligência artificial
+
+`lib/ai` separa contratos, provider e ferramentas autorizadas. O provider OpenAI usa exclusivamente a Responses API com Structured Outputs e `store: false`; o áudio usa o endpoint de transcrição. O modelo nunca recebe um cliente Supabase e nunca executa mutações. A rota autenticada `/api/agent` valida entrada e saída, aplica rate limiting, deduplica por chave idempotente, persiste estado e mensagens e registra auditoria sem payload comercial.
+
+Estados persistidos: `menu` → `collecting` → `awaiting_confirmation` → `confirmed`, com saídas `cancelled` e `error`. Somente a ação explícita `confirm` pode criar e confirmar o documento; as regras do servidor voltam a validar organização, contato, itens, totais e status.
+
 ## Contatos e documentos
 
 O painel usa uma única entidade `business_contacts`. O formulário filtra o mesmo conjunto pelo papel necessário: cliente para orçamento e fornecedor para pedido de compra. O servidor repete essa validação antes de persistir e grava um snapshot completo no documento.

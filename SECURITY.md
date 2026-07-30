@@ -1,5 +1,13 @@
 # Segurança
 
+## Inteligência artificial
+
+- `OPENAI_API_KEY` é lida somente em módulo `server-only` e nunca usa prefixo `NEXT_PUBLIC_`.
+- Saídas estruturadas passam por Zod; o modelo não acessa banco nem Storage.
+- Áudios são limitados a 10 MB e MIME types permitidos; bytes e transcrições não são registrados em logs.
+- Mensagens são deduplicadas por UUID, limitadas por organização e auditadas sem conteúdo comercial.
+- Falhas externas usam mensagens públicas genéricas e códigos técnicos apenas no servidor.
+
 O MVP usa validação Zod, Supabase Auth, RLS por organização, Storage privado, confirmação explícita, idempotência e limites de upload. Segredos permanecem somente em `.env.local`, ignorado pelo Git.
 
 ## Painel web

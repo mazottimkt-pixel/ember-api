@@ -29,7 +29,8 @@ Validação completa: `npm run check`. Aplique `supabase/migrations/202607290001
 - Datas validadas e PDFs com acentuação, dados completos das partes e identificação do responsável.
 - Página interna `/demo` e cobertura Playwright em celular, tablet e desktop.
 - webhook oficial da Meta com verificação de challenge, assinatura e chave idempotente no banco.
-- provedores de IA e WhatsApp explicitamente mockados sem credenciais.
+- laboratório autenticado em `/agent-lab`, com provider OpenAI via Responses API, Structured Outputs validados por Zod, transcrição de áudio e fallback local.
+- WhatsApp permanece explicitamente mockado e desconectado.
 
 Banco remoto: `npm run db:inspect`, `npm run db:validate` e `npm run test:integration`.
 
