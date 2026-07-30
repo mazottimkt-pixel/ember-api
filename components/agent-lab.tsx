@@ -8,7 +8,7 @@ type AgentResponse = { conversationId: string; reply: string; state: AgentState;
 
 export function AgentLab() {
   const [conversationId, setConversationId] = useState<string>();
-  const [turns, setTurns] = useState<Turn[]>([{ role: "agent", text: "O que você deseja criar hoje: orçamento, pedido de compra ou consultar documentos?" }]);
+  const [turns, setTurns] = useState<Turn[]>([{ role: "agent", text: "Olá. Eu sou a Lume, assistente comercial inteligente da Ember. Posso ajudar você a criar um orçamento, gerar um pedido de compra ou localizar um documento." }]);
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<AgentDraft>();
   const [state, setState] = useState<AgentState>("menu");
@@ -72,7 +72,7 @@ export function AgentLab() {
 
   return <div className="agent-layout">
     <section className="panel agent-chat" aria-label="Conversa de teste">
-      <div className="agent-turns" aria-live="polite">{turns.map((turn, index) => <div key={index} className={`agent-message ${turn.role}`}><strong>{turn.role === "agent" ? "Ember" : "Você"}</strong><p>{turn.text}</p></div>)}</div>
+      <div className="agent-turns" aria-live="polite">{turns.map((turn, index) => <div key={index} className={`agent-message ${turn.role}`}><strong>{turn.role === "agent" ? "Lume" : "Você"}</strong><p>{turn.text}</p></div>)}</div>
       {error && <p className="error" role="alert">{error}</p>}
       <label htmlFor="agent-message">Mensagem ou transcrição</label>
       <textarea id="agent-message" value={text} onChange={e => setText(e.target.value)} maxLength={8000} rows={4} placeholder="Ex.: Faça um orçamento para a Clínica Alfa..." />

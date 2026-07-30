@@ -1,5 +1,15 @@
 # Ember Comercial
 
+O agente comercial chama-se **Lume — assistente comercial inteligente da Ember**. O laboratório interno em `/agent-lab` usa a mesma representação normalizada preparada para canais externos, sem conexão ativa com Meta ou WhatsApp.
+
+Para validar autenticação e RLS repetidamente:
+
+```bash
+npm run test:auth-rls:stability
+```
+
+O runner executa os dois fluxos de integração 20 vezes em sequência. Sessões de teste ficam somente no diretório temporário do sistema, sem refresh automático, e são removidas ao final.
+
 Assistente comercial multiempresa para criar orçamentos e pedidos de compra pelo painel ou pela API oficial do WhatsApp Business. O produto está em MVP local: integrações externas permanecem mockadas até suas credenciais serem configuradas.
 
 ## Executar

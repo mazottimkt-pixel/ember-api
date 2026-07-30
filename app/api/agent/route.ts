@@ -4,6 +4,7 @@ import { agentDraftSchema, agentRequestSchema, emptyAgentDraft, type AgentState 
 import { getAgentAIProvider } from "@/lib/ai/openai-provider";
 import { confirmAgentDocument, createAgentDraft, queryDocuments, type AgentToolContext } from "@/lib/ai/tools";
 import { locateMissingFields } from "@/lib/ai/missing";
+import { normalizeAgentLabInput } from "@/lib/channels/agent-lab-adapter";
 
 export const runtime = "nodejs";
 const questions: Record<string, string> = {
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Solicitação inválida." }, { status: 400 });
   const { organizationId, supabase, user } = await requireMembership();
   const input = parsed.data;
+  const channelMessage = normalizeAgentLabInput({ organizationId, userId: user.id, idempotencyKey: input.idempotencyKey, conversationId: input.conversationId, text: input.text });
   const { count } = await supabase.from("messages").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("direction", "inbound").gte("created_at", new Date(Date.now() - 60_000).toISOString());
   if ((count ?? 0) >= 20) return NextResponse.json({ error: "Limite temporário atingido. Aguarde um minuto." }, { status: 429 });
-  const key = `lab:${organizationId}:${input.idempotencyKey}`;
+  const key = channelMessage.externalMessageId;
   const { data: duplicate } = await supabase.from("messages").select("conversation_id,content").eq("whatsapp_message_id", key).maybeSingle();
   if (duplicate) return NextResponse.json({ conversationId: duplicate.conversation_id, duplicate: true, ...((duplicate.content as { response?: object }).response ?? {}) });
 

@@ -4,7 +4,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { agentDecisionSchema, emptyAgentDraft, type AgentDecision, type AgentDraft } from "./contracts";
 import type { AgentAIProvider, ProviderMetrics } from "./provider";
 
-const instructions = `Você é o agente comercial do Ember Comercial. Fale em português brasileiro, de modo formal, cordial e objetivo. Use frases claras e curtas. Faça somente uma pergunta por vez. Extraia exclusivamente dados informados pelo usuário e preserve os dados válidos do rascunho atual. Nunca invente dados. Confirme valores e datas. Não dê parecer jurídico ou fiscal. Informe quando precisar de intervenção humana. Um documento definitivo sempre exige confirmação explícita e validação do servidor.`;
+const instructions = `Você é a Lume, assistente comercial inteligente da Ember, e deve assumir explicitamente que é uma assistente de inteligência artificial. Fale em português brasileiro, de modo formal, cordial, claro e objetivo. Use frases curtas. Faça somente uma pergunta por vez. Extraia exclusivamente dados informados pelo usuário e preserve os dados válidos do rascunho atual. Nunca invente dados. Confirme valores e datas. Não dê parecer jurídico ou fiscal. Informe quando precisar de intervenção humana. Um documento definitivo sempre exige confirmação explícita e validação do servidor.`;
 const modelAvailability = new Map<string, { available: boolean; checkedAt: number }>();
 const dateInstructions = "No campo validity, use exclusivamente datas no formato YYYY-MM-DD.";
 
@@ -107,7 +107,7 @@ export class FallbackProvider implements AgentAIProvider {
       intent: type ?? "unknown",
       draft: { ...current, type },
       ambiguities: [],
-      reply: type ? "Entendi. Vou reunir os dados necessários, um campo por vez." : "O que você deseja criar hoje: orçamento, pedido de compra ou consulta de documentos?",
+      reply: type ? "Entendi. Vou reunir os dados necessários, um campo por vez." : "Olá. Eu sou a Lume, assistente comercial inteligente da Ember. Posso ajudar você a criar um orçamento, gerar um pedido de compra ou localizar um documento.",
     });
   }
   async transcribe(): Promise<string> { throw new Error("AI_UNAVAILABLE"); }

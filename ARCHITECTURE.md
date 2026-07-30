@@ -1,5 +1,13 @@
 # Arquitetura
 
+## Canais e agente
+
+Lume é a assistente comercial inteligente da Ember. Entradas de canal são convertidas para `NormalizedInbound` e respostas para `NormalizedOutbound`. O Agent Lab já usa essa fronteira; o adapter de WhatsApp permanece deliberadamente desconectado e lança `WHATSAPP_CHANNEL_NOT_CONFIGURED` ao tentar enviar.
+
+`ChannelMessageProcessor` define o contrato da fila: claim idempotente por identificador externo, lock por organização e conversa, estados `received`, `processing`, `responded` e `failed`, retry de entrega com backoff limitado e encaminhamento para atendimento humano após falha. A implementação persistente futura deve satisfazer `ChannelQueueRepository`; nenhuma credencial ou endpoint da Meta existe nessa camada.
+
+O motor de estado e as ferramentas continuam independentes do canal. Adapters apenas normalizam entrada e saída; eles não gravam documentos nem acessam diretamente as ferramentas comerciais.
+
 ## Camada de inteligência artificial
 
 `lib/ai` separa contratos, provider e ferramentas autorizadas. O provider OpenAI usa exclusivamente a Responses API com Structured Outputs e `store: false`; o áudio usa o endpoint de transcrição. O modelo nunca recebe um cliente Supabase e nunca executa mutações. A rota autenticada `/api/agent` valida entrada e saída, aplica rate limiting, deduplica por chave idempotente, persiste estado e mensagens e registra auditoria sem payload comercial.
