@@ -40,6 +40,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+.codex-cloudflared.*.log
+.codex-webhook-proxy.*.log
+.codex-next.*.log
 next-env.d.ts
 
 .vercel
