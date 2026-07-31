@@ -21,6 +21,15 @@ const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 export class MetaApiError extends Error {
   constructor(readonly status: number, readonly code?: number, readonly transient = false) { super("META_API_ERROR"); this.name = "MetaApiError"; }
   get retryable() { return this.transient || RETRYABLE_STATUS.has(this.status); }
+  get sanitizedType() {
+    if (this.code === 130497) return "GEOGRAPHIC_RESTRICTION";
+    if (this.code === 190 || this.status === 401) return "INVALID_TOKEN";
+    if (this.code === 10 || this.code === 200 || this.status === 403) return "INSUFFICIENT_PERMISSION";
+    if (this.code === 131030) return "RECIPIENT_NOT_ALLOWED";
+    if (this.code === 131047) return "CONVERSATION_WINDOW_CLOSED";
+    if (this.retryable) return "TEMPORARY_META_FAILURE";
+    return "META_REQUEST_REJECTED";
+  }
 }
 
 function unixToIso(value: unknown) {
@@ -97,21 +106,25 @@ export class WhatsAppChannelAdapter implements ChannelAdapter<WhatsAppNormalizeI
     }
     return response;
   }
-  async deliver(raw: NormalizedOutbound): Promise<{ externalMessageId: string }> {
+  async deliver(raw: NormalizedOutbound): Promise<{ externalMessageId: string; httpStatus: number; latencyMs: number }> {
     const output = normalizedOutboundSchema.parse(raw);
     const to = output.conversationId;
+    const allowedRecipient = (process.env.WHATSAPP_TEST_RECIPIENT ?? "").replace(/\D/g, "");
+    if (!allowedRecipient || to.replace(/\D/g, "") !== allowedRecipient) throw new Error("WHATSAPP_RECIPIENT_NOT_ALLOWED");
+    if (output.kind !== "text" || output.buttons?.length) throw new Error("WHATSAPP_TEXT_ONLY_MODE");
     let message: Record<string, unknown>;
-    if (output.kind === "document" && output.mediaReference) message = { messaging_product: "whatsapp", recipient_type: "individual", to, type: "document", document: { link: output.mediaReference, caption: output.text } };
+    if ((output.kind as string) === "document" && output.mediaReference) message = { messaging_product: "whatsapp", recipient_type: "individual", to, type: "document", document: { link: output.mediaReference, caption: output.text } };
     else if (output.buttons?.length) message = { messaging_product: "whatsapp", recipient_type: "individual", to, type: "interactive", interactive: { type: "button", body: { text: output.text ?? "Escolha uma opção:" }, action: { buttons: output.buttons.map((button) => ({ type: "reply", reply: button })) } } };
     else message = { messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: false, body: output.text ?? "Não foi possível concluir esta etapa. Digite 1 para confirmar, 2 para corrigir ou 3 para cancelar." } };
     let response: Response;
+    const startedAt = performance.now();
     try { response = await this.graph(`${this.phoneNumberId}/messages`, { method: "POST", body: JSON.stringify(message) }); }
     catch (error) {
       if (!output.buttons?.length || (error instanceof MetaApiError && error.retryable)) throw error;
       const fallback = `${output.text ?? "Escolha uma opÃ§Ã£o:"}\n\n1. Confirmar\n2. Corrigir\n3. Cancelar`;
       response = await this.graph(`${this.phoneNumberId}/messages`, { method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: false, body: fallback } }) });
     }
-    return { externalMessageId: sendResultSchema.parse(await response.json()).messages[0].id };
+    return { externalMessageId: sendResultSchema.parse(await response.json()).messages[0].id, httpStatus: response.status, latencyMs: Math.round(performance.now() - startedAt) };
   }
   async downloadAudio(mediaId: string) {
     const metadataResponse = await this.graph(mediaId);

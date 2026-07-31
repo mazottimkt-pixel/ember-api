@@ -5,7 +5,7 @@ import { getAgentAIProvider } from "@/lib/ai/openai-provider";
 import { runAgentTurn } from "@/lib/ai/turn";
 import type { AgentToolContext } from "@/lib/ai/tools";
 import { normalizedOutboundSchema, type NormalizedInbound, type NormalizedOutbound } from "@/lib/channels/contracts";
-import { WhatsAppChannelAdapter, shouldAdvanceWhatsAppStatus, type ParsedWhatsAppEvent, type WhatsAppStatus } from "@/lib/channels/whatsapp-adapter";
+import { MetaApiError, WhatsAppChannelAdapter, shouldAdvanceWhatsAppStatus, type ParsedWhatsAppEvent, type WhatsAppStatus } from "@/lib/channels/whatsapp-adapter";
 import { withBackoff } from "@/lib/channels/queue";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -76,16 +76,21 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     const ctx: AgentToolContext = { organizationId: message.organizationId, supabase: admin as AgentToolContext["supabase"], userId: member.user_id };
     const result = await runAgentTurn(ctx, { action: actionFor(message), text, idempotencyKey: message.externalMessageId, state, draft, documentId: typeof context.documentId === "string" ? context.documentId : undefined });
     await admin.from("conversations").update({ state: result.state, context: { draft: result.draft, documentId: result.documentId }, updated_at: new Date().toISOString() }).eq("id", conversation.id).eq("organization_id", message.organizationId);
-    const buttons = result.state === "awaiting_confirmation" ? [{ id: "confirm", label: "Confirmar" }, { id: "correct", label: "Corrigir" }, { id: "cancel", label: "Cancelar" }] : undefined;
-    const output = normalizedOutboundSchema.parse({ channel: "whatsapp", conversationId: message.externalConversationId, kind: "text", text: result.reply, buttons, replyToExternalMessageId: message.externalMessageId, metadata: { state: result.state } });
+    const output = normalizedOutboundSchema.parse({ channel: "whatsapp", conversationId: message.externalConversationId, kind: "text", text: result.reply, replyToExternalMessageId: message.externalMessageId, metadata: { state: result.state } });
+    if (process.env.WHATSAPP_INBOUND_ONLY === "true") {
+      await admin.from("audit_logs").insert({ organization_id: message.organizationId, actor_id: member.user_id, action: "whatsapp.message.processed.inbound_only", entity_type: "conversation", entity_id: conversation.id,
+        metadata: { inboundMessageIdSuffix: message.externalMessageId.slice(-8), provider: result.provider, metrics: result.metrics, transcriptionMetrics, status: result.state } });
+      await updateJob(admin, message, "responded");
+      return { processed: true as const, outboundSuppressed: true as const };
+    }
     const sent = await deliverWithRetry(adapter, output);
-    await admin.from("messages").insert({ organization_id: message.organizationId, conversation_id: conversation.id, whatsapp_message_id: sent.externalMessageId, direction: "outbound", kind: "text", content: { state: result.state }, processing_status: "processed" });
+    await admin.from("messages").insert({ organization_id: message.organizationId, conversation_id: conversation.id, whatsapp_message_id: sent.externalMessageId, direction: "outbound", kind: "text", content: { state: result.state }, processing_status: "processed", delivery_status: "sent", delivery_status_updated_at: new Date().toISOString() });
     await admin.from("audit_logs").insert({ organization_id: message.organizationId, actor_id: member.user_id, action: "whatsapp.message.processed", entity_type: "conversation", entity_id: conversation.id,
-      metadata: { inboundMessageId: message.externalMessageId, outboundMessageId: sent.externalMessageId, provider: result.provider, metrics: result.metrics, transcriptionMetrics, status: result.state } });
+      metadata: { inboundMessageIdSuffix: message.externalMessageId.slice(-8), outboundMessageIdSuffix: sent.externalMessageId.slice(-8), metaHttpStatus: sent.httpStatus, metaLatencyMs: sent.latencyMs, provider: result.provider, metrics: result.metrics, transcriptionMetrics, status: result.state } });
     await updateJob(admin, message, "responded");
     return { processed: true as const };
   } catch (error) {
-    const code = error instanceof Error ? error.message : "UNKNOWN";
+    const code = error instanceof MetaApiError ? error.sanitizedType : error instanceof Error ? error.message : "UNKNOWN";
     await updateJob(admin, message, "failed", code.slice(0, 80));
     const fallback = normalizedOutboundSchema.parse({ channel: "whatsapp", conversationId: message.externalConversationId!, kind: "text", text: humanText, metadata: { handoff: true } });
     await adapter.deliver(fallback).catch(() => undefined);

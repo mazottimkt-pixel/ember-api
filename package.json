@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "whatsapp:dev": "node scripts/whatsapp-dev.mjs",
+    "whatsapp:dev:check": "node scripts/whatsapp-dev.mjs --check",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

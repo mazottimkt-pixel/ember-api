@@ -43,6 +43,9 @@ yarn-error.log*
 .codex-cloudflared.*.log
 .codex-webhook-proxy.*.log
 .codex-next.*.log
+.codex-*.log
 next-env.d.ts
+.whatsapp-dev-url
+.whatsapp-dev-*.log
 
 .vercel
