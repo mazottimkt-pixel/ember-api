@@ -28,3 +28,20 @@ export function verificationUrl(origin, token, challenge) {
   url.searchParams.set("hub.challenge", challenge);
   return url;
 }
+
+export async function signedPostHealth(origin, appSecret) {
+  const { createHmac } = await import("node:crypto");
+  const body = JSON.stringify({ object: "whatsapp_business_account", entry: [] });
+  const signature = `sha256=${createHmac("sha256", appSecret).update(body).digest("hex")}`;
+  const response = await fetch(`${origin}${WEBHOOK_PATH}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-hub-signature-256": signature },
+    body,
+    redirect: "manual",
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (response.status !== 200) throw new Error(`SIGNED_POST_HEALTH_FAILED:HTTP_${response.status}`);
+  const result = await response.json();
+  if (result?.received !== true || result?.eventCount !== 0) throw new Error("SIGNED_POST_HEALTH_BODY_INVALID");
+  return response.status;
+}

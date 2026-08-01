@@ -47,5 +47,6 @@ yarn-error.log*
 next-env.d.ts
 .whatsapp-dev-url
 .whatsapp-dev-*.log
+.whatsapp-pilot-state.json
 
 .vercel

@@ -2,11 +2,12 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { loadLocalEnv } from "./load-env.mjs";
-import { extractTryCloudflareUrl, NEXT_ORIGIN, PROXY_ORIGIN, verificationUrl, waitForHttp, WEBHOOK_PATH } from "./whatsapp-dev-lib.mjs";
+import { extractTryCloudflareUrl, NEXT_ORIGIN, PROXY_ORIGIN, signedPostHealth, verificationUrl, waitForHttp, WEBHOOK_PATH } from "./whatsapp-dev-lib.mjs";
 
 const env = { ...process.env, ...loadLocalEnv() };
 const verifyToken = env.WHATSAPP_VERIFY_TOKEN;
 if (!verifyToken) throw new Error("WHATSAPP_VERIFY_TOKEN ausente no .env.local");
+if (!env.META_APP_SECRET) throw new Error("META_APP_SECRET ausente no .env.local");
 
 const children = [];
 const urlFile = join(process.cwd(), ".whatsapp-dev-url");
@@ -49,6 +50,8 @@ try {
   run(process.execPath, ["scripts/webhook-tunnel-proxy.mjs"], "Proxy restrito", { stdio: ["ignore", "pipe", "pipe"] });
   await waitForHttp(`${PROXY_ORIGIN}${WEBHOOK_PATH}`, { expected: [403], timeoutMs: 20_000 });
   console.log("✓ Proxy restrito ativo: localhost:3100");
+  await signedPostHealth(PROXY_ORIGIN, env.META_APP_SECRET);
+  console.log("✓ POST local assinado: HTTP 200");
 
   const tunnel = run(cloudflaredExecutable(), ["tunnel", "--no-autoupdate", "--url", PROXY_ORIGIN], "Cloudflare Tunnel", { stdio: ["ignore", "pipe", "pipe"] });
   let tunnelOutput = "";

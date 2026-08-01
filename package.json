@@ -6,6 +6,8 @@
     "dev": "next dev",
     "whatsapp:dev": "node scripts/whatsapp-dev.mjs",
     "whatsapp:dev:check": "node scripts/whatsapp-dev.mjs --check",
+    "whatsapp:switch-channel": "node scripts/whatsapp-switch-channel.mjs",
+    "whatsapp:pilot": "node scripts/whatsapp-pilot.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
