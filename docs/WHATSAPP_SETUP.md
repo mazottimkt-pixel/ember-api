@@ -1,65 +1,57 @@
-# Configuração do WhatsApp de teste
+# WhatsApp Business Platform — configuração segura
 
-Este guia configura somente o ambiente de teste da WhatsApp Business Platform Cloud API oficial. O Ember não usa WhatsApp Web.
+O Ember usa exclusivamente a WhatsApp Business Platform Cloud API oficial. Não há automação de WhatsApp Web.
 
-## 1. Criar o aplicativo
+Referências oficiais: [WhatsApp Business Platform](https://developers.facebook.com/docs/whatsapp/), [Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started/), [Embedded Signup](https://developers.facebook.com/docs/whatsapp/embedded-signup/) e [onboarding de usuários do Business App](https://developers.facebook.com/docs/whatsapp/embedded-signup/custom-flows/onboarding-business-app-users/).
 
-1. Acesse [Meta for Developers](https://developers.facebook.com/apps/) e entre com sua conta.
-2. Clique em **Criar aplicativo**.
-3. Se a tela perguntar o caso de uso, escolha **Outro** e depois **Empresa**. A Meta pode alterar os nomes dessa tela.
-4. Informe um nome, e-mail de contato e selecione ou crie um portfólio empresarial de teste.
-5. No painel do aplicativo, localize **WhatsApp** e clique em **Configurar**.
+> A interface e a elegibilidade da Meta mudam. Confirme no painel atual se coexistência é oferecida; nunca trate migração como coexistência por suposição.
 
-## 2. Anotar os identificadores de teste
+## Ambiente local
 
-Abra **WhatsApp > Configuração da API**. Copie apenas para o `.env.local`:
+Execute `npm run whatsapp:dev`. O supervisor limpa somente o cache gerado `.next`, inicia Next.js em `127.0.0.1:3000`, o proxy restrito em `127.0.0.1:3100`, valida um POST local assinado e só então abre o Cloudflare Tunnel para `3100`. O painel web não é exposto.
 
-- **Token de acesso temporário** → `WHATSAPP_ACCESS_TOKEN`;
-- **ID do número de telefone** → `WHATSAPP_PHONE_NUMBER_ID`;
-- **ID da conta do WhatsApp Business** → `WHATSAPP_BUSINESS_ACCOUNT_ID`.
+O ambiente só fica pronto após validar aplicação, proxy, POST assinado, URL pública e GET público com HTTP 200 e challenge exato. A Callback URL aparece no terminal e em `.whatsapp-dev-url` enquanto o processo estiver ativo. Quick Tunnels geram nova URL; atualize a Meta manualmente.
 
-Em **Configurações > Básico**, use o segredo do aplicativo em `META_APP_SECRET`. Nunca envie esses valores por chat, e-mail, captura de tela ou commit.
+## Caminho A — coexistência (preferencial)
 
-## 3. Adicionar o telefone destinatário
+Use somente quando o painel oferecer explicitamente conectar um número que permanece no WhatsApp Business App.
 
-1. Ainda em **Configuração da API**, vá a **Para** e escolha **Gerenciar lista de números de telefone**.
-2. Adicione seu celular com DDI e DDD.
-3. Digite no painel o código recebido no celular.
-4. Use **Enviar mensagem** para enviar o template de teste fornecido pela Meta. Isso valida o número sem usar o Ember.
+- O número continua utilizável no Business App.
+- A Cloud API é vinculada pelo fluxo oficial de onboarding/coexistência.
+- QR Code, confirmação no aplicativo, SMS/ligação e permissões são etapas manuais.
+- Histórico sincronizado, dispositivos e recursos dependem das condições exibidas pela Meta; o Ember não presume importação integral.
 
-## 4. Expor o webhook local com HTTPS
+### Checklist manual literal
 
-O servidor local deve estar em execução e acessível por uma URL HTTPS pública. Use um túnel confiável, como Cloudflare Tunnel ou ngrok, apontando para `http://localhost:3000`. Não publique o painel inteiro como ambiente de produção.
+- [ ] Confirmar que o Business App funciona no telefone principal.
+- [ ] Fazer backup pelas opções do aplicativo.
+- [ ] Confirmar acesso administrativo ao portfólio, aplicativo Meta e WABA corretos.
+- [ ] Abrir o aplicativo correto em Meta for Developers e o produto WhatsApp.
+- [ ] Abrir Embedded Signup/adicionar número.
+- [ ] Procurar texto explícito como **conectar o WhatsApp Business App** ou **coexistência**.
+- [ ] Confirmar que o painel mostra o número brasileiro parcialmente mascarado esperado.
+- [ ] Ler impactos sobre histórico, dispositivos e recursos.
 
-A URL de callback será:
+**PARE AQUI se a Meta não mencionar coexistência. Não migre, remova nem desconecte.**
 
-`https://SEU-ENDERECO-HTTPS/api/webhooks/whatsapp`
+- [ ] Prosseguir manualmente apenas no caminho identificado como coexistência.
+- [ ] Concluir QR Code, confirmação no aplicativo, SMS ou ligação sem compartilhar códigos.
+- [ ] Confirmar no aplicativo que a sessão permaneceu ativa.
+- [ ] Copiar localmente o novo Phone Number ID e a WABA exibida.
+- [ ] Confirmar WABA inscrita no aplicativo atual e campo `messages` assinado.
+- [ ] Não disparar mensagens pelo Ember.
+- [ ] Executar primeiro o dry-run descrito em [WHATSAPP_CHANNEL_SWITCH.md](./WHATSAPP_CHANNEL_SWITCH.md).
 
-## 5. Configurar a verificação
+## Caminho B — migração completa
 
-1. Crie localmente uma frase longa e aleatória para `WHATSAPP_VERIFY_TOKEN`.
-2. Em **WhatsApp > Configuração > Webhook**, clique em **Editar**.
-3. Cole a URL de callback.
-4. Cole exatamente a mesma frase no campo **Token de verificação**.
-5. Clique em **Verificar e salvar**.
-6. Assine o campo/evento **messages**. Ele inclui mensagens recebidas e atualizações de envio, entrega e leitura.
+O número deixa o Business App e passa a operar exclusivamente pela Cloud API. Há risco de indisponibilidade, perda de recursos/sessões e limitações de histórico. Antes, confirme backup, política de histórico, desconexão exigida, janela de validação, dispositivos vinculados e rollback. O Codex não deve iniciar esse caminho sem autorização específica.
 
-Configure `WHATSAPP_API_VERSION` com uma versão da Graph API disponível no painel do aplicativo, por exemplo no formato `vNN.0`. Reinicie o servidor após alterar o `.env.local`.
+## Webhook
 
-## 6. Primeiro teste pelo Ember
+1. Inicie `npm run whatsapp:dev`.
+2. Copie a Callback URL exibida.
+3. Informe-a manualmente em **WhatsApp > Configuração > Webhook**.
+4. Use o mesmo `WHATSAPP_VERIFY_TOKEN` local.
+5. Verifique, salve e assine `messages`.
 
-Cadastre no banco o vínculo entre o `WHATSAPP_PHONE_NUMBER_ID` de teste e a organização. Envie uma mensagem do telefone destinatário para o número de teste. A Lume responderá pelo mesmo motor do `/agent-lab`. Documentos definitivos continuam exigindo o botão **Confirmar**.
-
-## 7. Substituir o token temporário
-
-O token da tela de teste expira. Posteriormente, crie um usuário de sistema no Gerenciador de Negócios, conceda somente os ativos e permissões necessários ao WhatsApp e gere um token duradouro. Troque apenas `WHATSAPP_ACCESS_TOKEN` no ambiente seguro e reinicie o servidor. Não coloque tokens em arquivos versionados.
-
-## Nunca compartilhe
-
-- token de acesso;
-- segredo do aplicativo;
-- token de verificação;
-- chaves OpenAI ou Supabase;
-- conteúdo de mensagens, áudios ou documentos reais em tickets e logs.
-
-O webhook rejeita assinaturas inválidas, processa por fila após responder à Meta e não guarda o áudio permanentemente.
+Nunca compartilhe tokens, segredos, chaves, código SMS, ligação, QR Code, payload real, áudio, documento, número completo ou `.env.local`.

@@ -13,3 +13,9 @@ O Supabase de desenvolvimento executa PostgreSQL 17.6. As três migrations versi
 Estado validado: 14 tabelas de domínio, RLS habilitado nas 14, 43 policies públicas/Storage, 5 funções, 2 triggers, 25 índices e 2 buckets privados. O modelo cobre organizações, perfis, papéis, clientes, fornecedores, catálogo, documentos/itens/sequências, conversas, mensagens, arquivos, eventos e auditoria.
 
 O teste integrado autenticou duas organizações diferentes e comprovou bloqueio de leitura, atualização e download cruzados. Também criou orçamento e pedido, confirmou ambos, registrou quatro eventos e armazenou um PDF privado.
+
+## Canais WhatsApp
+
+`whatsapp_channels` relaciona Phone Number ID e WABA à organização, sem guardar access token ou App Secret. `channel_message_jobs` deduplica por identificador externo e registra o processamento; `channel_conversation_locks` serializa cada conversa. RLS permite leitura por membro e administração por owner/admin; as funções de lock são exclusivas da service role do worker.
+
+A migration `202608010001_whatsapp_channel_switch_history.sql` remove a suposição incorreta de uma única linha por WABA — uma WABA pode conter mais de um número — e acrescenta desativação lógica e referência ao canal anterior. Troca e rollback preservam jobs, conversas, mensagens, documentos e auditoria.

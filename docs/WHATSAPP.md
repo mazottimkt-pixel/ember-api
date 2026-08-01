@@ -1,5 +1,11 @@
 # Integração oficial do WhatsApp
 
-Use exclusivamente WhatsApp Cloud API. Configure na Meta o callback `https://SEU_DOMINIO/api/webhooks/whatsapp`, o verify token e o App Secret. `GET` responde ao challenge; `POST` exige `X-Hub-Signature-256`. A implementação não envia mensagens reais sem `WHATSAPP_ACCESS_TOKEN`.
+A implementação usa exclusivamente a WhatsApp Cloud API oficial, com assinatura `X-Hub-Signature-256`, normalização, deduplicação, lock e fila persistente.
 
-Variáveis: `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` e `META_APP_SECRET`. Para áudio, baixar a mídia somente após validar o webhook, impor limite/tipo, transcrever e apagar temporários. O ID oficial da mensagem é a chave idempotente. Responder rapidamente ao webhook e mover trabalho pesado para fila é obrigatório antes de produção.
+Consulte:
+
+- [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) para coexistência, migração e ambiente local;
+- [WHATSAPP_CHANNEL_SWITCH.md](./WHATSAPP_CHANNEL_SWITCH.md) para dry-run, troca e rollback;
+- [WHATSAPP_PILOT.md](./WHATSAPP_PILOT.md) para a bateria supervisionada.
+
+O número brasileiro da Ember ainda não foi registrado na Cloud API. Nenhuma etapa automática pode desconectar o WhatsApp Business App.

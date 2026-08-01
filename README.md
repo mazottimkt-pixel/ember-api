@@ -1,6 +1,6 @@
 # Ember Comercial
 
-O agente comercial chama-se **Lume — assistente comercial inteligente da Ember**. O laboratório interno em `/agent-lab` usa a mesma representação normalizada preparada para canais externos, sem conexão ativa com Meta ou WhatsApp.
+O agente comercial chama-se **Lume — assistente comercial inteligente da Ember**. `/agent-lab` e o adapter oficial da WhatsApp Cloud API usam a mesma representação normalizada e máquina de estados.
 
 Para validar autenticação e RLS repetidamente:
 
@@ -40,8 +40,10 @@ Validação completa: `npm run check`. Aplique `supabase/migrations/202607290001
 - Página interna `/demo` e cobertura Playwright em celular, tablet e desktop.
 - webhook oficial da Meta com verificação de challenge, assinatura e chave idempotente no banco.
 - laboratório autenticado em `/agent-lab`, com provider OpenAI via Responses API, Structured Outputs validados por Zod, transcrição de áudio e fallback local.
-- WhatsApp permanece explicitamente mockado e desconectado.
+- WhatsApp Cloud API possui webhook, adapter, fila, lock, deduplicação e ambiente local restrito. O número brasileiro ainda não foi registrado; coexistência e troca de canal dependem das etapas manuais documentadas.
 
 Banco remoto: `npm run db:inspect`, `npm run db:validate` e `npm run test:integration`.
+
+Ambiente WhatsApp: `npm run whatsapp:dev`. Troca segura (dry-run): `npm run whatsapp:switch-channel`. Piloto bloqueado por autorização explícita: `npm run whatsapp:pilot`.
 
 Consulte [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [ROADMAP.md](ROADMAP.md), [SECURITY.md](SECURITY.md), [QA_CHECKLIST.md](QA_CHECKLIST.md), [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md), [docs/WHATSAPP.md](docs/WHATSAPP.md), [docs/DECISIONS.md](docs/DECISIONS.md) e [PENDENCIAS_DO_PROPRIETARIO.md](PENDENCIAS_DO_PROPRIETARIO.md).

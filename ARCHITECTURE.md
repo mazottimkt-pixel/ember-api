@@ -2,9 +2,9 @@
 
 ## Canais e agente
 
-Lume é a assistente comercial inteligente da Ember. Entradas de canal são convertidas para `NormalizedInbound` e respostas para `NormalizedOutbound`. O Agent Lab já usa essa fronteira; o adapter de WhatsApp permanece deliberadamente desconectado e lança `WHATSAPP_CHANNEL_NOT_CONFIGURED` ao tentar enviar.
+Lume é a assistente comercial inteligente da Ember. Entradas de canal são convertidas para `NormalizedInbound` e respostas para `NormalizedOutbound`. Agent Lab e WhatsApp Cloud API usam a mesma máquina de estados e ferramentas autorizadas. O adapter oficial valida allowlist, assinatura, mídia e erros sanitizados; credenciais permanecem exclusivamente no servidor.
 
-`ChannelMessageProcessor` define o contrato da fila: claim idempotente por identificador externo, lock por organização e conversa, estados `received`, `processing`, `responded` e `failed`, retry de entrega com backoff limitado e encaminhamento para atendimento humano após falha. A implementação persistente futura deve satisfazer `ChannelQueueRepository`; nenhuma credencial ou endpoint da Meta existe nessa camada.
+`ChannelMessageProcessor` aplica claim persistente por identificador externo, lock por organização e conversa, estados `received`, `processing`, `responded` e `failed`, retry somente recuperável e fallback humano. `whatsapp_channels` vincula Phone Number ID à organização sem armazenar token ou segredo. Trocas são lógicas, preservam o canal anterior e mantêm referência transacional de rollback.
 
 O motor de estado e as ferramentas continuam independentes do canal. Adapters apenas normalizam entrada e saída; eles não gravam documentos nem acessam diretamente as ferramentas comerciais.
 
