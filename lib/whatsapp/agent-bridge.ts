@@ -156,6 +156,6 @@ export function buildWhatsAppError(message: NormalizedInbound, code: string, sta
   };
   if (code === "CONTACT_NOT_FOUND" || code === "AMBIGUOUS_CONTACT") output.buttons = [...lumeButtons.contactNotFound];
   else if (code === "DRAFT_CREATE_FAILED") output.buttons = [{ id: "confirm", label: "Tentar novamente" }, { id: "show_main", label: "Menu de soluções" }];
-  else output.buttons=[{id:"show_main",label:"Menu principal"},{id:"talk_to_lume",label:"Falar com a Lume"}];
+  else output.buttons=[{id:"talk_to_lume",label:"Continuar conversando"}];
   return output;
 }

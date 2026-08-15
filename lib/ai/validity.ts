@@ -7,6 +7,11 @@ export type ValidityCollectionContext = {
 };
 
 export type AgentCollectionContext = {
+  pendingIntentSwitch?: import("@/lib/conversation/intent-transition").PendingIntentSwitch;
+  experience?: {
+    introductionSeenAt: string;
+    lastInteractionAt: string;
+  };
   taskStateV1?: import("@/lib/agent-v1/task-state").TaskStateV1;
   activeTask?: import("@/lib/orchestrator/task-model").ActiveAdministrativeTask;
   expectedAnswer?: import("@/lib/ai/contextual-understanding").ExpectedAnswer;

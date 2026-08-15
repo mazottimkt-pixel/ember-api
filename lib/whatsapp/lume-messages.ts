@@ -52,7 +52,7 @@ export const lumeMessages = {
   summaryClosing: "Confira as informações com atenção.\n\nPosso emitir o documento com esses dados? Você também pode me dizer diretamente o que deseja corrigir.",
   pdfFailure: "O documento foi criado e confirmado com segurança, mas não consegui preparar o PDF neste momento.\n\nNenhuma informação foi perdida. Envie *Gerar PDF* para tentar novamente.",
   documentCreationFailure: "Não consegui criar o pedido de compra.\n\nNenhum documento foi gerado.\n\nSeus dados foram preservados.",
-  generalFailure: "Não consegui concluir esta etapa neste momento.\n\nSeus dados foram preservados. Tente novamente em alguns instantes.",
+  generalFailure: "Esta etapa não respondeu neste momento. Nenhuma ação foi concluída e seus dados foram preservados.\n\nVocê pode reenviar a última mensagem ou explicar como deseja continuar.",
   options: "Como deseja continuar?",
   confirmationButtonsUnavailable: "Para continuar, responda com uma das opções:\n\n1 — Confirmar\n2 — Corrigir\n3 — Cancelar",
   noSearchResults: "Não encontrei nenhum documento com as informações enviadas.\n\nConfira o número ou tente buscar pelo nome do cliente ou fornecedor.",

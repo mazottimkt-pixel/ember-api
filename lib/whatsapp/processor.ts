@@ -63,10 +63,13 @@ import { mapLegacyContext } from "@/lib/agent-v1/legacy-mapper";
 import { compareAgentDecisions, runLumeAgentV1 } from "@/lib/agent-v1/engine";
 import { processAgentV1Turn } from "@/lib/agent-v1/processor";
 import { createAgentV1RealTools } from "@/lib/agent-v1/real-tools";
+import { applyConversationExperience } from "@/lib/conversation/experience";
+import { classifyIntentTransition, cleanDraftForIntent, switchLabels, type PendingIntentSwitch } from "@/lib/conversation/intent-transition";
 
 const promptActionIds = new Set(["show_main","show_commercial","show_operations","show_finance","show_content","show_management","talk_to_lume","create_quote","create_purchase_order","search_document","confirm","correct","cancel","emit_default_document","customize_documents_now","use_default_document_style","configure_documents_later","continue_without_logo","cancel_branding_setup","template_essential","template_executive","template_contemporary","template_commercial","approve_document_branding","adjust_document_branding"]);
 const navigationActionIds = new Set(["show_main","show_commercial","show_operations","show_finance","show_content","show_management","talk_to_lume","create_quote","create_purchase_order","search_document","search_operations","query_confirmed_values","search_purchase_orders","query_documents_attention","query_customers","query_suppliers","query_catalog","query_documents","query_management_summary","choose_operations_period","search_operations_7d","search_operations_30d","search_operations_month","back","cancel"]);
 function promptForResult(result:{state:AgentState;reply:string;collection:AgentCollectionContext}){
+  if(result.collection.pendingIntentSwitch){const labels=switchLabels(result.collection.pendingIntentSwitch);return createConversationPrompt({promptType:"confirmation",flowId:`intent_switch:${result.collection.pendingIntentSwitch.from}:${result.collection.pendingIntentSwitch.to}`,expectedState:result.state,options:[{number:1,id:"start_intent_switch",label:`Começar ${labels.task}`},{number:2,id:"continue_current_task",label:`Continuar ${labels.current}`},{number:3,id:"cancel_intent_switch",label:"Cancelar"}]});}
   if(result.collection.vaultSearch?.results.length)return createConversationPrompt({promptType:"continuation",flowId:"administrative_file_search",expectedState:"menu",options:result.collection.vaultSearch.results.map((item,index)=>({number:index+1,id:`vault_file:${item.id}`,label:item.label}))});
   if(result.collection.party?.awaitingCnpjDecision)return createConversationPrompt({promptType:"continuation",flowId:"party_cnpj",expectedState:"collecting",options:[{number:1,id:"include_cnpj",label:"Sim"},{number:2,id:"skip_cnpj",label:"Não precisa"}]});
   if(result.reply===lumeMessages.opening)return undefined;
@@ -420,6 +423,19 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     const semanticDocumentAction = promptChoice?.id === "confirm_document" ? "confirm" : promptChoice?.id === "correct_document" ? "correct" : promptChoice?.id === "cancel_document" ? "cancel" : promptChoice?.id === "personalize_now" ? "customize_documents_now" : promptChoice?.id === "not_now" ? "configure_documents_later" : undefined;
     if(semanticDocumentAction)action=semanticDocumentAction;else if(promptChoice&&promptActionIds.has(promptChoice.id))action=promptChoice.id as typeof action;else if(promptChoice)action="message";
     if(/^\s*\d+\s*$/.test(text)&&!promptChoice)action="message";
+    const transition=classifyIntentTransition({message:text,state,draft,hasActivePrompt:Boolean(collection.activePrompt),correctionRequested:collection.correctionRequested});
+    const requestedDraftType:PendingIntentSwitch["to"]|undefined=transition.requested==="document_query"?"document_search":transition.requested==="quote"||transition.requested==="purchase_order"?transition.requested:undefined;
+    let transitionResult:Awaited<ReturnType<typeof runAgentTurn>>|undefined;
+    if(promptChoice?.id==="start_intent_switch"&&collection.pendingIntentSwitch){
+      const pending=collection.pendingIntentSwitch,nextDraft=cleanDraftForIntent(pending.to),nextCollection={...turnInput.collection,pendingIntentSwitch:undefined,activePrompt:undefined,summary:undefined,pendingField:undefined,correctionRequested:false,commercialInterpretation:undefined,party:undefined};
+      transitionResult=await runAgentTurn(ctx,{...turnInput,action:pending.to==="quote"?"create_quote":pending.to==="purchase_order"?"create_purchase_order":"search_document",draft:nextDraft,state:"menu",documentId:undefined,collection:nextCollection});
+    }else if((promptChoice?.id==="continue_current_task"||promptChoice?.id==="cancel_intent_switch")&&collection.pendingIntentSwitch){
+      const labels=switchLabels(collection.pendingIntentSwitch);
+      transitionResult={state,draft,documentId:turnInput.documentId,reply:promptChoice.id==="continue_current_task"?`Certo. Vamos continuar o ${labels.current} de onde paramos.`:`Tudo bem. A troca foi cancelada e o ${labels.current} continua preservado.`,provider:"intent-transition",documents:undefined,metrics:undefined,collection:{...turnInput.collection,pendingIntentSwitch:undefined,activePrompt:undefined}};
+    }else if(transition.kind==="CONFIRM_SWITCH"&&requestedDraftType&&draft.type){
+      const pending={from:draft.type,to:requestedDraftType,requestedAt:new Date(message.receivedAt).toISOString()},labels=switchLabels(pending);
+      transitionResult={state,draft,documentId:turnInput.documentId,reply:`Sem problema. Quer abandonar este ${labels.current} e começar um ${labels.task}?`,provider:"intent-transition",documents:undefined,metrics:undefined,collection:{...turnInput.collection,pendingIntentSwitch:pending,activePrompt:undefined}};
+    }
     let navigation = globalNavigation?{action:globalNavigation}:promptChoice&&navigationActionIds.has(promptChoice.id)?{action:promptChoice.id as import("@/lib/navigation/menu-engine").MenuAction}:promptChoice||/^\s*\d+\s*$/.test(text)?null:resolveMenuInput(text, collection.navigation);
     let hybridReply:string|undefined, hybridContext=collection.hybrid;
     let vaultReply:string|undefined;
@@ -438,12 +454,12 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
       const query=/cartao cnpj|comprovante de inscricao|cadastro da empresa/.test(normalizedIntent)?"cartão CNPJ":/contrato/.test(normalizedIntent)?"contrato":/proposta/.test(normalizedIntent)?"proposta":/comprovante/.test(normalizedIntent)?"comprovante":/orcamento/.test(normalizedIntent)?"orçamento":/pedido/.test(normalizedIntent)?"pedido":text;
       const files=await searchAdministrativeFiles(admin,{organizationId:message.organizationId,query,limit:5});
       if(files.length===1){vaultFileReference=await signedAdministrativeFileUrl(admin,{organizationId:message.organizationId,fileId:files[0].id});vaultReply=`Encontrei ${files[0].document_category==="cartão CNPJ"?"o cartão CNPJ":"o documento solicitado"}.\n\nVou encaminhá-lo abaixo.`;}
-      else if(files.length>1){const choices=files.map(file=>({id:file.id,label:`${file.title||file.original_filename} — ${new Intl.DateTimeFormat("pt-BR").format(new Date(file.occurred_at))}`}));vaultReply=`Encontrei mais de um documento que pode corresponder ao seu pedido:\n\n${choices.map((item,index)=>`${index+1} — ${item.label}`).join("\n")}\n\nQual deseja receber?`;turnInput.collection={...turnInput.collection,vaultSearch:{query,results:choices}};}
+      else if(files.length>1){const choices=files.map(file=>({id:file.id,label:`${file.title||file.original_filename} — ${new Intl.DateTimeFormat("pt-BR").format(new Date(file.occurred_at))}`}));vaultReply="Encontrei mais de um documento que pode corresponder ao seu pedido. Escolha na lista abaixo ou descreva qual deles deseja receber.";turnInput.collection={...turnInput.collection,vaultSearch:{query,results:choices}};}
       else if(query==="cartão CNPJ"){const organization=await admin.from("organizations").select("name,legal_name,tax_id").eq("id",message.organizationId).single();vaultReply=organization.data?.tax_id?`Não encontrei um arquivo anexado, mas localizei estas informações:\n\nRazão social: ${organization.data.legal_name??organization.data.name}\nCNPJ: ${organization.data.tax_id}`:lumeMessages.fileNotFound;}
       else vaultReply=lumeMessages.fileNotFound;
     }
     const invalidNumericOption=(/^\s*\d+\s*$/.test(text)&&!promptChoice)||stalePromptButton;
-    if(!navigation&&!vaultReply&&!invalidNumericOption&&action==="message"&&!isLumeGreeting(text)&&hybridOrchestratorEnabled("whatsapp")){
+    if(!transitionResult&&!navigation&&!vaultReply&&!invalidNumericOption&&action==="message"&&!isLumeGreeting(text)&&hybridOrchestratorEnabled("whatsapp")){
       const activeFlow=state==="collecting"&&draft.type?draft.type:undefined,decision=orchestrateHybrid({message:text,channel:"whatsapp",state,activeFlow,draft,context:collection.hybrid,featureFlags:{WHATSAPP_OPERATIONAL_FLOWS_ENABLED:process.env.WHATSAPP_OPERATIONAL_FLOWS_ENABLED==="true",WHATSAPP_CONTENT_FLOWS_ENABLED:process.env.WHATSAPP_CONTENT_FLOWS_ENABLED==="true"},audioConfidence:message.kind==="audio"?(typeof message.metadata.transcriptionConfidence==="number"?message.metadata.transcriptionConfidence:undefined):undefined});
       const routeActions=new Set(["create_quote","create_purchase_order","search_document","search_operations","query_confirmed_values","search_purchase_orders","query_documents_attention","query_customers","query_suppliers","query_catalog","query_management_summary"]);
       if(routeActions.has(decision.suggestedAction)&&(!decision.requiresConfirmation||decision.reasonCode==="explicit_intent_confirmation")){
@@ -460,7 +476,9 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     let menuQueryReply:string|null=null, menuQueryFailed=false;
     if(navigation)try{menuQueryReply=await handleWhatsAppMenuQuery(ctx,navigation.action)}catch{menuQueryFailed=true;}
     let result;
-    if(invalidNumericOption){
+    if(transitionResult){
+      result=transitionResult;
+    } else if(invalidNumericOption){
       result={state,draft,documentId:turnInput.documentId,reply:lumeMessages.invalidPromptOption,provider:"server",documents:undefined,metrics:undefined,collection:{...turnInput.collection,activePrompt:undefined}};
     } else if (vaultReceipt) {
       result={state:"menu" as const,draft,documentId:undefined,reply:vaultReceipt,provider:"administrative-vault",documents:undefined,metrics:undefined,collection:{...turnInput.collection,activePrompt:undefined}};
@@ -514,7 +532,7 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
       const navigable=renderNavigableResponse("Qual período deseja consultar?",{kind:"query_success",currentMenu:"operations",options:[{action:"search_operations_7d",label:"Últimos 7 dias"},{action:"search_operations_30d",label:"Últimos 30 dias"},{action:"search_operations_month",label:"Mês atual"},{action:"back",label:"Voltar"},{action:"show_main",label:"Menu principal"},{action:"talk_to_lume",label:"Falar com a Lume"}]});
       result={state:"menu" as const,draft:emptyAgentDraft(),documentId:undefined,reply:navigable.reply,provider:"server",documents:undefined,metrics:undefined,collection:{...collection,navigation:{...navigationState("operations",collection.navigation?.previous_menu,navigation.action),continuation_actions:navigable.options}}};
     } else if (menuQueryReply || menuQueryFailed) {
-      const currentMenu=collection.navigation?.current_menu??"main",queryAction=navigation!.action,empty=Boolean(menuQueryReply&&/^(Nenhum|Não há|Ainda não|As métricas)/i.test(menuQueryReply)),managementActions=new Set(["query_customers","query_suppliers","query_catalog","query_documents","search_operations","query_management_summary"]),options=queryAction==="query_documents"&&empty?[{action:"show_commercial" as const,label:"Criar um documento"},{action:"show_management" as const,label:"Voltar às consultas"}]:managementActions.has(queryAction)?[{action:"show_management" as const,label:"Voltar às consultas"}]:undefined,navigable=renderNavigableResponse(menuQueryFailed?"Não consegui concluir essa consulta agora.":menuQueryReply!,{kind:menuQueryFailed?"recoverable_error":empty?"empty":"query_success",currentMenu,currentAction:queryAction,options});
+      const currentMenu=collection.navigation?.current_menu??"main",queryAction=navigation!.action,empty=Boolean(menuQueryReply&&/^(Nenhum|Não há|Ainda não|As métricas)/i.test(menuQueryReply)),managementActions=new Set(["query_customers","query_suppliers","query_catalog","query_documents","search_operations","query_management_summary"]),options=queryAction==="query_documents"&&empty?[{action:"show_commercial" as const,label:"Criar um documento"},{action:"show_management" as const,label:"Voltar às consultas"}]:managementActions.has(queryAction)?[{action:"show_management" as const,label:"Voltar às consultas"}]:undefined,navigable=renderNavigableResponse(menuQueryFailed?"A consulta não respondeu neste momento. Nenhum dado foi alterado; você pode tentar novamente ou me passar outro critério de busca.":menuQueryReply!,{kind:menuQueryFailed?"recoverable_error":empty?"empty":"query_success",currentMenu,currentAction:queryAction,options});
       result = {
         state: "menu" as const,
         draft: emptyAgentDraft(),
@@ -555,6 +573,15 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     }
     result={...result,collection:{...result.collection,activePrompt:promptForResult(result)??(result.provider==="administrative-vault"?result.collection.activePrompt:undefined)}};
     result={...result,collection:{...result.collection,activeTask:deriveAdministrativeTask(result.state,result.draft,result.collection)}};
+    const experienced = applyConversationExperience({
+      message: text,
+      state: result.state,
+      draft: result.draft,
+      collection: result.collection,
+      reply: result.reply,
+      now: new Date(message.receivedAt),
+    });
+    result={...result,reply:experienced.reply,collection:experienced.collection};
     conversationState = result.state;
     await admin
       .from("conversations")

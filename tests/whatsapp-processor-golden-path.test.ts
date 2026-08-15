@@ -69,7 +69,7 @@ describe("jornada completa pelo processor do WhatsApp",()=>{
 
   it("executa o fluxo dourado de orçamento sem menu prematuro ou duplicidade",async()=>{
     await processWhatsAppEvent(inbound("Olá, Lume",1));
-    expect(lastText()).toContain("O que você precisa hoje?");
+    expect(lastText()).toContain("O que precisamos resolver hoje?");
     expect(lastText()).not.toContain("Menu de soluções");
 
     await processWhatsAppEvent(inbound("Faça um orçamento para a empresa Alfa de instalação de três câmeras por R$ 3.800, pagamento à vista e validade de 7 dias.",2));
@@ -99,12 +99,12 @@ describe("jornada completa pelo processor do WhatsApp",()=>{
     runtime.contactRegistered=false;
     await processWhatsAppEvent(inbound("Olá, Lume",1));await processWhatsAppEvent(inbound("Criar orçamento",2));await processWhatsAppEvent(inbound("Alfa",3));await processWhatsAppEvent(inbound("São 20 lâmpadas, 30 reais cada",4));
     let context=runtime.conversation?.context as {draft:Record<string,unknown>;collection:Record<string,unknown>};
-    expect(context.draft).toMatchObject({itemType:"product",totalPrice:600,items:[{description:"lampadas",quantity:20,unitPrice:30}]});expect(lastText()).toContain("prazo de entrega");
+    expect(context.draft).toMatchObject({itemType:"product",totalPrice:600,items:[{description:"lâmpadas",quantity:20,unitPrice:30}]});expect(lastText()).toContain("prazo de entrega");
     await processWhatsAppEvent(inbound("20 dias",5));await processWhatsAppEvent(inbound("cartão de crédito 2 vezes",6));context=runtime.conversation?.context as typeof context;
-    expect(context.draft).toMatchObject({deadline:"20 dias",paymentTerms:"Cartão de crédito em 2 vezes",paymentDetails:{method:"credit_card",installments:2},items:[{description:"lampadas",quantity:20,unitPrice:30}]});
+    expect(context.draft).toMatchObject({deadline:"20 dias",paymentTerms:"Cartão de crédito em 2 vezes",paymentDetails:{method:"credit_card",installments:2},items:[{description:"lâmpadas",quantity:20,unitPrice:30}]});
     await processWhatsAppEvent(inbound("30 dias",7));const cnpjOutput=runtime.outputs.at(-1) as {text?:string;buttons?:Array<{id:string}>};
     expect(cnpjOutput.text?.match(/Deseja incluir o CNPJ/g)).toHaveLength(1);expect(cnpjOutput.text).not.toMatch(/1\s+—\s+Sim|2\s+—/);expect(cnpjOutput.buttons?.map(button=>button.id)).toEqual(["include_cnpj","skip_cnpj"]);
-    await processWhatsAppEvent(inbound("Não precisa",8));expect(lastText()).toContain("Produto: lampadas");expect(lastText()).toContain("Pagamento: Cartão de crédito em 2 vezes");expect(lastText()).toContain("Prazo de entrega: 20 dias");
+    await processWhatsAppEvent(inbound("Não precisa",8));expect(lastText()).toContain("Produto: lâmpadas");expect(lastText()).toContain("Pagamento: Cartão de crédito em 2 vezes");expect(lastText()).toContain("Prazo de entrega: 20 dias");
     const summaryOutput=runtime.outputs.at(-1) as {buttons?:Array<{id:string}>};expect(summaryOutput.buttons?.map(button=>button.id)).toEqual(["confirm_document","correct_document","cancel_document"]);
     await processWhatsAppEvent(inbound("Corrigir informações",9));await processWhatsAppEvent(inbound("Alterar o item para lâmpadas LED",10));context=runtime.conversation?.context as typeof context;
     expect(context.draft).toMatchObject({paymentTerms:"Cartão de crédito em 2 vezes",deadline:"20 dias",items:[{description:"lampadas led",quantity:20,unitPrice:30}]});
@@ -135,12 +135,33 @@ describe("jornada completa pelo processor do WhatsApp",()=>{
   it("preserva lâmpadas até o objeto entregue à persistência",async()=>{
     await processWhatsAppEvent(inbound("Olá, Lume",1));await processWhatsAppEvent(inbound("Criar orçamento",2));await processWhatsAppEvent(inbound("Alfa",3));await processWhatsAppEvent(inbound("São 20 lâmpadas a R$ 30 cada",4));await processWhatsAppEvent(inbound("20 dias",5));await processWhatsAppEvent(inbound("cartão de crédito em 2 vezes",6));await processWhatsAppEvent(inbound("30 dias",7));
     await processWhatsAppEvent(inbound("Não precisa",8));await processWhatsAppEvent(inbound("Pode emitir",9));
-    expect(runtime.createdDraft).toMatchObject({paymentTerms:"Cartão de crédito em 2 vezes",items:[{description:"lampadas",quantity:20,unitPrice:30}]});
+    expect(runtime.createdDraft).toMatchObject({paymentTerms:"Cartão de crédito em 2 vezes",items:[{description:"lâmpadas",quantity:20,unitPrice:30}]});
   });
   it("branding pós-sucesso consome ‘Gostaria sim’ sem reabrir resumo ou documento",async()=>{
     const draft={type:"quote",counterpartyName:"Alfa",items:[{description:"lampadas",quantity:20,unit:"un",unitPrice:30,discount:0}],shipping:0,validity:"2026-09-13",deadline:"20 dias",paymentTerms:"Cartão de crédito em 2 vezes",deliveryAddress:null,notes:null,documentQuery:null,itemType:"product"};
     const now=new Date().toISOString();runtime.conversation={id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",state:"confirmed",context:{draft,documentId:"11111111-1111-4111-8111-111111111111",collection:{branding:{state:"offer",afterSuccess:true},activePrompt:{promptId:"branding_after_success",promptType:"branding_offer",options:[{number:1,id:"personalize_now",label:"Personalizar agora"},{number:2,id:"not_now",label:"Agora não"}],presentedAt:now,flowId:"branding_after_success",version:"2026-08-commercial-baseline-v3",expectedState:"confirmed"}}}};
     await processWhatsAppEvent(inbound("Gostaria sim",10));const context=runtime.conversation.context as {collection:{branding:{state:string};activePrompt?:{flowId:string}}};
     expect(runtime.conversation.state).toBe("confirmed");expect(context.collection.branding.state).toBe("awaiting_logo");expect(context.collection.activePrompt?.flowId).toBe("branding_after_success");expect(lastText()).toContain("Me envie a logo");expect(lastText()).not.toContain("Revise os dados");expect(runtime.createCount).toBe(0);
+  });
+  it("confirma troca incompatível e inicia pedido sem contaminar dados do orçamento",async()=>{
+    await processWhatsAppEvent(inbound("Criar orçamento",1));await processWhatsAppEvent(inbound("Alfa",2));await processWhatsAppEvent(inbound("20 cadeiras a R$ 250 cada",3));
+    const before=structuredClone(runtime.conversation?.context.draft);await processWhatsAppEvent(inbound("qual é o CNPJ da minha empresa?",4));expect(runtime.conversation?.context.draft).toEqual(before);
+    await processWhatsAppEvent(inbound("continua",5));expect(runtime.conversation?.context.draft).toEqual(before);
+    await processWhatsAppEvent(inbound("Esquece isso, quero fazer um pedido de compra",6));
+    let context=runtime.conversation?.context as {draft:Record<string,unknown>;collection:{pendingIntentSwitch?:Record<string,string>;activePrompt?:{flowId:string}}};
+    expect(context.draft).toEqual(before);expect(context.collection.pendingIntentSwitch).toMatchObject({from:"quote",to:"purchase_order"});expect(context.collection.activePrompt?.flowId).toBe("intent_switch:quote:purchase_order");
+    expect((runtime.outputs.at(-1)?.buttons as Array<{id:string}>).map(button=>button.id)).toEqual(["start_intent_switch","continue_current_task","cancel_intent_switch"]);
+    await processWhatsAppEvent(inbound("sim, começa o pedido",7));context=runtime.conversation?.context as typeof context;
+    expect(context.draft).toMatchObject({type:"purchase_order",counterpartyName:null,items:[]});expect(context.collection.pendingIntentSwitch).toBeUndefined();expect(lastText()).toContain("fornecedor");
+  });
+  it("permite recusar troca e preserva integralmente a tarefa atual",async()=>{
+    await processWhatsAppEvent(inbound("Criar orçamento",1));await processWhatsAppEvent(inbound("Alfa",2));const before=structuredClone(runtime.conversation?.context.draft);
+    await processWhatsAppEvent(inbound("quero fazer um pedido de compra",3));await processWhatsAppEvent(inbound("continua o orçamento",4));
+    const context=runtime.conversation?.context as {draft:Record<string,unknown>;collection:{pendingIntentSwitch?:unknown}};expect(context.draft).toEqual(before);expect(context.collection.pendingIntentSwitch).toBeUndefined();expect(lastText()).toContain("continuar o orçamento");
+  });
+  it("trata consulta administrativa como interrupção temporária",async()=>{
+    await processWhatsAppEvent(inbound("Criar orçamento",1));await processWhatsAppEvent(inbound("Alfa",2));const before=structuredClone(runtime.conversation?.context.draft);
+    await processWhatsAppEvent(inbound("qual é o CNPJ da minha empresa?",3));
+    const context=runtime.conversation?.context as {draft:Record<string,unknown>};expect(context.draft).toEqual(before);expect(runtime.conversation?.state).toBe("collecting");expect(lastText()).toContain("trabalho atual foi preservado");
   });
 });

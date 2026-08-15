@@ -255,12 +255,8 @@ const normalize = (v: string) =>
     .trim();
 export function resolveGlobalNavigation(raw:string):MenuAction|undefined{const value=normalize(raw),has=(values:string[])=>values.map(normalize).includes(value);if(has(["menu principal","retornar ao menu principal","voltar ao menu principal","voltar ao menu","volta ao menu","retorne ao menu","retornar ao menu","ir ao menu","ir para o menu principal","quero o menu principal","mostra o menu principal","abre o menu principal","abrir o menu","volta para o inicio","voltar ao inicio","inicio","menu","menu de solucoes","solucoes","ver solucoes","mostrar solucoes","mostrar opcoes","quais sao as opcoes","o que voce faz","quero conhecer as funcionalidades","quero ver o menu","quero o menu","opcoes principais","voltar para as opcoes"]))return"show_main";if(has(["voltar","retorna","retornar","volte","voltar uma etapa","menu anterior","opcao anterior","voltar para tras","sair desta consulta"]))return"back";if(has(["falar com a lume","quero falar com a lume","preciso de ajuda","pode me ajudar","quero fazer outra coisa","preciso de outra coisa","tenho outra solicitacao","quero falar com a inteligencia artificial","nao sei qual opcao escolher","pode me ajudar com outra coisa"]))return"talk_to_lume";if(has(["cancelar","cancela","parar","sair","encerrar","desistir","nao quero continuar"]))return"cancel";}
 export function renderMenu(id: MenuId) {
-  const menu = menus[id],
-    rows = menu.items
-      .filter((i) => i.available)
-      .map((i, n) => `${n + 1} — ${i.label}`)
-      .join("\n");
-  return [menu.title, menu.description, rows, menu.comingSoon]
+  const menu = menus[id];
+  return [menu.title, menu.description, "Escolha uma opção na lista abaixo ou simplesmente me diga o que precisa.", menu.comingSoon]
     .filter(Boolean)
     .join("\n\n");
 }

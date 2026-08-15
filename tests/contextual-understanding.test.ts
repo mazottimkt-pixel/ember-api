@@ -39,7 +39,7 @@ describe("motor de compreensão contextual", () => {
   });
 
   it("aceita frase natural com quantidade antes do produto", () => {
-    expect(parseItemBundle("São 20 lâmpadas a 30 reais cada")).toMatchObject({ description: "lampadas", quantity: 20, unitPrice: 30, total: 600, itemType: "product" });
+    expect(parseItemBundle("São 20 lâmpadas a 30 reais cada")).toMatchObject({ description: "lâmpadas", quantity: 20, unitPrice: 30, total: 600, itemType: "product" });
     expect(parseItemBundle("20 lampada 30 cada")).toMatchObject({ description: "lampada", quantity: 20, unitPrice: 30, total: 600 });
   });
 

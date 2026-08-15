@@ -14,12 +14,14 @@ export function expectedAnswerFor(draft: AgentDraft, pendingField?: string): Exp
 
 export function parseItemBundle(text: string) {
   const normalized = normalize(text);
-  const naturalBundle = /^(?:sao\s+)?(\d+)\s+([\p{L}][\p{L}\s-]*?)[\s,]+(?:(?:a|por)\s+)?(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:reais?)?\s*cada(?:\s+um[ao]?)?\b/iu.exec(normalized);
+  const source = text.toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+  const naturalBundle = /^(?:s[aã]o\s+)?(\d+)\s+([\p{L}][\p{L}\s-]*?)[\s,]+(?:(?:a|por)\s+)?(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:reais?)?\s*cada(?:\s+um[ao]?)?\b/iu.exec(source);
   if (naturalBundle) {
     const description = naturalBundle[2].trim(); const quantity = number(naturalBundle[1]); const unitPrice = number(naturalBundle[3]);
     if (isPaymentOnlyDescription(description)) return undefined;
-    const product = /\b(?:lampadas?|cadeiras?|notebooks?|materiais?|equipamentos?|produtos?)\b/.test(description);
-    const service = /\b(?:instalacao|manutencao|consultoria|design|pintura|servico)\b/.test(description);
+    const semanticDescription = normalize(description);
+    const product = /\b(?:lampadas?|cadeiras?|notebooks?|materiais?|equipamentos?|produtos?)\b/.test(semanticDescription);
+    const service = /\b(?:instalacao|manutencao|consultoria|design|pintura|servico)\b/.test(semanticDescription);
     return { description, quantity, unitPrice, total: quantity * unitPrice, itemType: product && !service ? "product" as const : service && !product ? "service" as const : product && service ? "mixed" as const : "unknown" as const };
   }
   const price = /(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:reais?)?\s*(?:cada(?:\s+um[ao]?)?|por\s+unidade)\b/i.exec(normalized);

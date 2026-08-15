@@ -61,6 +61,10 @@ export const provenanceEntrySchema = z.object({
     "inference",
   ]),
   confidence: z.number().min(0).max(1),
+  status: z
+    .enum(["KNOWN", "INFERRED", "UNCERTAIN", "MISSING", "CONFIRMED"])
+    .default("KNOWN"),
+  confirmed: z.boolean().default(false),
   timestamp: z.string().datetime(),
   revision: z.number().int().nonnegative(),
 });
