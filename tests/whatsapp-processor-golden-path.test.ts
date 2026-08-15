@@ -1,7 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from "vitest";
 vi.mock("server-only",()=>({}));
 
-const runtime=vi.hoisted(()=>({conversation:null as null|{id:string;state:string;context:Record<string,unknown>},outputs:[] as Array<Record<string,unknown>>,createCount:0,confirmCount:0,pdfCount:0,messageSequence:0,brandingConfigured:true,contactRegistered:true,persistedBranding:[] as string[],createdDraft:null as null|Record<string,unknown>}));
+const runtime=vi.hoisted(()=>({conversation:null as null|{id:string;state:string;context:Record<string,unknown>},outputs:[] as Array<Record<string,unknown>>,createCount:0,createFailuresRemaining:0,confirmCount:0,pdfCount:0,pdfFailuresRemaining:0,documentDeliveryFailuresRemaining:0,messageSequence:0,brandingConfigured:true,contactRegistered:true,persistedBranding:[] as string[],createdDraft:null as null|Record<string,unknown>}));
 
 vi.mock("@/lib/ai/openai-provider",()=>({
   getAgentAIProvider:()=>({name:"processor-mock",getLastMetrics:()=>undefined,transcribe:vi.fn(),analyze:vi.fn(async(text:string,current:Record<string,unknown>)=>{
@@ -16,12 +16,12 @@ vi.mock("@/lib/ai/openai-provider",()=>({
 vi.mock("@/lib/branding/store",()=>({activeBranding:vi.fn(async()=>runtime.brandingConfigured?{status:"configured"}:null),persistBranding:vi.fn(async(_ctx:unknown,input:{status:string})=>{runtime.brandingConfigured=true;runtime.persistedBranding.push(input.status);return{id:"branding"};})}));
 vi.mock("@/lib/whatsapp/menu-queries",()=>({handleWhatsAppMenuQuery:vi.fn(async(_ctx:unknown,action:string)=>action==="query_customers"?"Ainda não existem clientes registrados nesta empresa.":null)}));
 vi.mock("@/lib/ai/tools",()=>({
-  createAgentDraft:vi.fn(async(_ctx:unknown,draft:Record<string,unknown>)=>{runtime.createCount+=1;runtime.createdDraft=structuredClone(draft);return{id:"11111111-1111-4111-8111-111111111111",number:"ORC-2026-000001"};}),
+  createAgentDraft:vi.fn(async(_ctx:unknown,draft:Record<string,unknown>)=>{runtime.createCount+=1;if(runtime.createFailuresRemaining>0){runtime.createFailuresRemaining-=1;throw new Error("DRAFT_CREATE_FAILED");}runtime.createdDraft=structuredClone(draft);return{id:"11111111-1111-4111-8111-111111111111",number:"ORC-2026-000001"};}),
   confirmAgentDocument:vi.fn(async(_ctx:unknown,id:string)=>{runtime.confirmCount+=1;return{id,number:runtime.conversation?.context&&((runtime.conversation.context.draft as {type?:string})?.type)==="purchase_order"?"PC-2026-000001":"ORC-2026-000001"};}),
   findContact:vi.fn(async(_ctx:unknown,name:string)=>runtime.contactRegistered?[{id:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",legal_name:name,tax_id:null}]:[]),
   queryDocuments:vi.fn(async()=>[])
 }));
-vi.mock("@/lib/pdf/store-document",()=>({generateStoredDocumentPdf:vi.fn(async()=>{runtime.pdfCount+=1;return{url:"https://signed.invalid/document.pdf",filename:"documento.pdf"};})}));
+vi.mock("@/lib/pdf/store-document",()=>({generateStoredDocumentPdf:vi.fn(async()=>{runtime.pdfCount+=1;if(runtime.pdfFailuresRemaining>0){runtime.pdfFailuresRemaining-=1;throw new Error("PDF_STORAGE_FAILED");}return{url:"https://signed.invalid/document.pdf",filename:"documento.pdf"};})}));
 vi.mock("@/lib/pdf/branding-preview",()=>({generateBrandingPreviewPdf:vi.fn()}));
 vi.mock("@/lib/branding/image",()=>({validateLogo:vi.fn(async()=>({bytes:new Uint8Array([1,2,3]),extension:"png",mimeType:"image/png"}))}));
 
@@ -29,7 +29,7 @@ vi.mock("@/lib/channels/whatsapp-adapter",async(importOriginal)=>{
   const actual=await importOriginal<typeof import("@/lib/channels/whatsapp-adapter")>();
   class MockAdapter{
     normalize({event,organizationId,actorId}:{event:import("@/lib/channels/whatsapp-adapter").ParsedWhatsAppEvent;organizationId:string;actorId?:string}){return{channel:"whatsapp" as const,externalMessageId:event.externalMessageId,externalConversationId:event.externalConversationId,organizationId,actorId,kind:event.kind,text:event.text,buttonId:event.buttonId,receivedAt:event.receivedAt,metadata:{...event.metadata,phoneNumberId:event.phoneNumberId}};}
-    async deliver(output:Record<string,unknown>){runtime.outputs.push(output);runtime.messageSequence+=1;return{externalMessageId:`wamid.mock.${runtime.messageSequence}`,httpStatus:200,latencyMs:1};}
+    async deliver(output:Record<string,unknown>){if(output.kind==="document"&&runtime.documentDeliveryFailuresRemaining>0){runtime.documentDeliveryFailuresRemaining-=1;throw new Error("META_DOCUMENT_DELIVERY_FAILED");}runtime.outputs.push(output);runtime.messageSequence+=1;return{externalMessageId:`wamid.mock.${runtime.messageSequence}`,httpStatus:200,latencyMs:1};}
     async downloadBrandingLogo(){return new File([new Uint8Array([1,2,3])],"logo.png",{type:"image/png"});}
   }
   return{...actual,WhatsAppChannelAdapter:MockAdapter};
@@ -60,12 +60,13 @@ vi.mock("@/lib/supabase/admin",()=>({createSupabaseAdminClient:()=>db}));
 import {processWhatsAppEvent} from "@/lib/whatsapp/processor";
 
 const inbound=(text:string,index:number)=>({phoneNumberId:"phone-br",businessAccountId:"waba",externalMessageId:`wamid.in.${index}`,externalConversationId:"5511999999999",kind:"text" as const,text,receivedAt:`2026-08-05T12:00:${String(index).padStart(2,"0")}.000Z`,metadata:{}});
+const inboundButton=(buttonId:string,index:number)=>({phoneNumberId:"phone-br",businessAccountId:"waba",externalMessageId:`wamid.in.${index}`,externalConversationId:"5511999999999",kind:"button" as const,text:buttonId,buttonId,receivedAt:`2026-08-05T12:00:${String(index).padStart(2,"0")}.000Z`,metadata:{}});
 const inboundImage=(index:number)=>({phoneNumberId:"phone-br",businessAccountId:"waba",externalMessageId:`wamid.in.${index}`,externalConversationId:"5511999999999",kind:"image" as const,mediaReference:"media-logo",receivedAt:`2026-08-05T12:00:${String(index).padStart(2,"0")}.000Z`,metadata:{mimeType:"image/png"}});
 const lastText=()=>String([...runtime.outputs].reverse().find(output=>output.kind==="text")?.text??"");
 async function prepareConfirmedSummary(){await processWhatsAppEvent(inbound("Olá, Lume",1));await processWhatsAppEvent(inbound("Faça um orçamento para a empresa Alfa de instalação de três câmeras por R$ 3.800, pagamento à vista e validade de 7 dias.",2));await processWhatsAppEvent(inbound("1",3));await processWhatsAppEvent(inbound("5 dias",4));}
 
 describe("jornada completa pelo processor do WhatsApp",()=>{
-  beforeEach(()=>{runtime.conversation=null;runtime.outputs=[];runtime.createCount=0;runtime.createdDraft=null;runtime.confirmCount=0;runtime.pdfCount=0;runtime.messageSequence=0;runtime.brandingConfigured=true;runtime.contactRegistered=true;runtime.persistedBranding=[];process.env.WHATSAPP_TEST_RECIPIENT="5511999999999";process.env.WHATSAPP_ACCESS_TOKEN="mock";process.env.WHATSAPP_PHONE_NUMBER_ID="phone-br";delete process.env.WHATSAPP_INBOUND_ONLY;delete process.env.WHATSAPP_HYBRID_ORCHESTRATOR_ENABLED;});
+  beforeEach(()=>{runtime.conversation=null;runtime.outputs=[];runtime.createCount=0;runtime.createFailuresRemaining=0;runtime.createdDraft=null;runtime.confirmCount=0;runtime.pdfCount=0;runtime.pdfFailuresRemaining=0;runtime.documentDeliveryFailuresRemaining=0;runtime.messageSequence=0;runtime.brandingConfigured=true;runtime.contactRegistered=true;runtime.persistedBranding=[];process.env.WHATSAPP_TEST_RECIPIENT="5511999999999";process.env.WHATSAPP_ACCESS_TOKEN="mock";process.env.WHATSAPP_PHONE_NUMBER_ID="phone-br";delete process.env.WHATSAPP_INBOUND_ONLY;delete process.env.WHATSAPP_HYBRID_ORCHESTRATOR_ENABLED;});
 
   it("executa o fluxo dourado de orçamento sem menu prematuro ou duplicidade",async()=>{
     await processWhatsAppEvent(inbound("Olá, Lume",1));
@@ -130,7 +131,33 @@ describe("jornada completa pelo processor do WhatsApp",()=>{
   });
   it("permite emitir sem logo durante a espera sem duplicar documento",async()=>{
     runtime.brandingConfigured=false;await prepareConfirmedSummary();await processWhatsAppEvent(inbound("Confirmar",5));await processWhatsAppEvent(inbound("Personalizar agora",6));await processWhatsAppEvent(inbound("pode emitir sem logo",7));
-    expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);expect(runtime.persistedBranding).toContain("default");
+    expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);expect(runtime.persistedBranding).not.toContain("default");
+  });
+  it("mantém o checkpoint confirmado e recupera o PDF sem duplicar documento",async()=>{
+    runtime.pdfFailuresRemaining=1;await prepareConfirmedSummary();await processWhatsAppEvent(inbound("Confirmar",5));
+    expect(runtime.conversation?.state).toBe("confirmed");expect(runtime.conversation?.context.documentId).toBe("11111111-1111-4111-8111-111111111111");expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);expect(lastText()).toContain("não consegui preparar o PDF");
+    await processWhatsAppEvent(inboundButton("retry_pdf",6));
+    expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(2);expect(runtime.outputs.at(-1)?.kind).toBe("document");
+  });
+  it("recupera falha anterior ao documento a partir do resumo preservado",async()=>{
+    runtime.createFailuresRemaining=1;await prepareConfirmedSummary();await processWhatsAppEvent(inboundButton("confirm_document",5));
+    expect(runtime.conversation?.state).toBe("awaiting_confirmation");expect(runtime.conversation?.context.documentId).toBeUndefined();expect(runtime.createCount).toBe(1);expect((runtime.outputs.at(-1)?.buttons as Array<{id:string}>).map(button=>button.id)).toEqual(["confirm_document","correct_document"]);
+    await processWhatsAppEvent(inboundButton("confirm_document",6));
+    expect(runtime.createCount).toBe(2);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);expect(runtime.outputs.at(-1)?.kind).toBe("document");
+  });
+  it("reutiliza documento e PDF depois de falha no outbound da Meta",async()=>{
+    runtime.documentDeliveryFailuresRemaining=1;await prepareConfirmedSummary();await processWhatsAppEvent(inboundButton("confirm_document",5));
+    expect(runtime.conversation?.state).toBe("confirmed");expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);
+    await processWhatsAppEvent(inbound("Gerar PDF",6));
+    expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(2);expect(runtime.outputs.at(-1)?.kind).toBe("document");
+  });
+  it("executa transcript completo com CNPJ livre e emissão padrão",async()=>{
+    runtime.contactRegistered=false;runtime.brandingConfigured=false;
+    await processWhatsAppEvent(inbound("Preciso fazer um orçamento para a Alfa de 20 lâmpadas a R$30 cada, prazo de 20 dias e pagamento no cartão em 2 vezes.",1));
+    await processWhatsAppEvent(inbound("30 dias",2));await processWhatsAppEvent(inboundButton("include_cnpj",3));await processWhatsAppEvent(inbound("09557452000143",4));
+    const reviewed=runtime.conversation?.context as {collection:{party:{taxId:string};activePrompt?:unknown}};expect(reviewed.collection.party.taxId).toBe("09.557.452/0001-43");expect(lastText()).toContain("09.557.452/0001-43");
+    await processWhatsAppEvent(inboundButton("confirm_document",5));await processWhatsAppEvent(inboundButton("emit_default_document",6));
+    expect(runtime.createCount).toBe(1);expect(runtime.confirmCount).toBe(1);expect(runtime.pdfCount).toBe(1);expect(runtime.outputs.at(-1)?.kind).toBe("document");expect(lastText()).not.toMatch(/1\s+—\s+/);expect((runtime.conversation?.context.collection as {activePrompt?:{flowId:string}}).activePrompt?.flowId).toBe("branding_after_success");
   });
   it("preserva lâmpadas até o objeto entregue à persistência",async()=>{
     await processWhatsAppEvent(inbound("Olá, Lume",1));await processWhatsAppEvent(inbound("Criar orçamento",2));await processWhatsAppEvent(inbound("Alfa",3));await processWhatsAppEvent(inbound("São 20 lâmpadas a R$ 30 cada",4));await processWhatsAppEvent(inbound("20 dias",5));await processWhatsAppEvent(inbound("cartão de crédito em 2 vezes",6));await processWhatsAppEvent(inbound("30 dias",7));

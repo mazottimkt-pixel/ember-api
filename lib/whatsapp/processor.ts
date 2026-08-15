@@ -421,6 +421,8 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     if(promptChoice&&collection.activePrompt)turnInput.collection={...turnInput.collection,activePrompt:consumeConversationPrompt(collection.activePrompt)};
     if(globalNavigation)turnInput.collection={...turnInput.collection,activePrompt:undefined,commercialInterpretation:undefined,correctionRequested:false,pendingField:undefined};
     const semanticDocumentAction = promptChoice?.id === "confirm_document" ? "confirm" : promptChoice?.id === "correct_document" ? "correct" : promptChoice?.id === "cancel_document" ? "cancel" : promptChoice?.id === "personalize_now" ? "customize_documents_now" : promptChoice?.id === "not_now" ? "configure_documents_later" : undefined;
+    if(promptChoice?.id==="include_cnpj")turnInput.text="sim";
+    if(promptChoice?.id==="skip_cnpj")turnInput.text="não precisa";
     if(semanticDocumentAction)action=semanticDocumentAction;else if(promptChoice&&promptActionIds.has(promptChoice.id))action=promptChoice.id as typeof action;else if(promptChoice)action="message";
     if(/^\s*\d+\s*$/.test(text)&&!promptChoice)action="message";
     const transition=classifyIntentTransition({message:text,state,draft,hasActivePrompt:Boolean(collection.activePrompt),correctionRequested:collection.correctionRequested});
@@ -458,7 +460,8 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
       else if(query==="cartão CNPJ"){const organization=await admin.from("organizations").select("name,legal_name,tax_id").eq("id",message.organizationId).single();vaultReply=organization.data?.tax_id?`Não encontrei um arquivo anexado, mas localizei estas informações:\n\nRazão social: ${organization.data.legal_name??organization.data.name}\nCNPJ: ${organization.data.tax_id}`:lumeMessages.fileNotFound;}
       else vaultReply=lumeMessages.fileNotFound;
     }
-    const invalidNumericOption=(/^\s*\d+\s*$/.test(text)&&!promptChoice)||stalePromptButton;
+    const deterministicNumericAnswer=Boolean(collection.party?.awaitingCnpj);
+    const invalidNumericOption=(/^\s*\d+\s*$/.test(text)&&!promptChoice&&!deterministicNumericAnswer)||stalePromptButton;
     if(!transitionResult&&!navigation&&!vaultReply&&!invalidNumericOption&&action==="message"&&!isLumeGreeting(text)&&hybridOrchestratorEnabled("whatsapp")){
       const activeFlow=state==="collecting"&&draft.type?draft.type:undefined,decision=orchestrateHybrid({message:text,channel:"whatsapp",state,activeFlow,draft,context:collection.hybrid,featureFlags:{WHATSAPP_OPERATIONAL_FLOWS_ENABLED:process.env.WHATSAPP_OPERATIONAL_FLOWS_ENABLED==="true",WHATSAPP_CONTENT_FLOWS_ENABLED:process.env.WHATSAPP_CONTENT_FLOWS_ENABLED==="true"},audioConfidence:message.kind==="audio"?(typeof message.metadata.transcriptionConfidence==="number"?message.metadata.transcriptionConfidence:undefined):undefined});
       const routeActions=new Set(["create_quote","create_purchase_order","search_document","search_operations","query_confirmed_values","search_purchase_orders","query_documents_attention","query_customers","query_suppliers","query_catalog","query_management_summary"]);
@@ -599,7 +602,8 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     let pdfReference: { url: string; filename: string } | undefined;
     let pdfError: string | undefined;
     const documentJustConfirmed=result.state==="confirmed"&&state!=="confirmed";
-    if (documentJustConfirmed && result.documentId) {
+    const pdfRetryRequested=action==="retry_pdf"&&result.state==="confirmed";
+    if ((documentJustConfirmed || pdfRetryRequested) && result.documentId) {
       try {
         pdfReference = await generateStoredDocumentPdf(admin, {
           organizationId: message.organizationId,

@@ -15,7 +15,7 @@ export function agentActionForInbound(message: NormalizedInbound) {
     confirm: "confirm", confirm_document: "confirm", confirmar: "confirm", "pode emitir": "confirm", "pode gerar": "confirm", "pode confirmar": "confirm", "tudo correto": "confirm", "esta certo": "confirm", confirmado: "confirm", manda: "confirm", sim: "confirm",
     correct: "correct", correct_document: "correct", corrigir: "correct",
     cancel: "cancel", cancel_document: "cancel", cancelar: "cancel",
-    "gerar pdf": "retry_pdf", "reenviar pdf": "retry_pdf", "tentar pdf novamente": "retry_pdf",
+    retry_pdf: "retry_pdf", "gerar pdf": "retry_pdf", "reenviar pdf": "retry_pdf", "tentar pdf novamente": "retry_pdf",
     create_quote: "create_quote", "criar orcamento": "create_quote", orcamento: "create_quote", "fazer orcamento": "create_quote", "novo orcamento": "create_quote",
     create_purchase_order: "create_purchase_order", "criar pedido": "create_purchase_order", pedido: "create_purchase_order", "pedido de compra": "create_purchase_order", "novo pedido": "create_purchase_order",
     search_document: "search_document", "consultar documento": "search_document", "buscar documento": "search_document", "localizar documento": "search_document",
@@ -155,7 +155,7 @@ export function buildWhatsAppError(message: NormalizedInbound, code: string, sta
     metadata: { state, friendlyErrorType: code, messageSignatureApplied: true },
   };
   if (code === "CONTACT_NOT_FOUND" || code === "AMBIGUOUS_CONTACT") output.buttons = [...lumeButtons.contactNotFound];
-  else if (code === "DRAFT_CREATE_FAILED") output.buttons = [{ id: "confirm", label: "Tentar novamente" }, { id: "show_main", label: "Menu de soluções" }];
-  else output.buttons=[{id:"talk_to_lume",label:"Continuar conversando"}];
+  else if (["DRAFT_CREATE_FAILED", "ITEM_CREATE_FAILED", "NUMBER_FAILED", "CONFIRM_FAILED", "BRANDING_SAVE_FAILED"].includes(code))
+    output.buttons = [{ id: "confirm_document", label: "Tentar emitir novamente" }, { id: "correct_document", label: "Corrigir informações" }];
   return output;
 }

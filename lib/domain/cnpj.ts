@@ -23,7 +23,7 @@ export function normalizeCnpj(value: string) {
 }
 
 export function extractCnpj(value: string) {
-  const candidate = value.match(/\d{2}[.\s]?\d{3}[.\s]?\d{3}[\/\s]?\d{4}[-\s]?\d{2}/)?.[0];
+  const candidate = value.match(/(?<!\d)\d{2}[.\s]?\d{3}[.\s]?\d{3}[\/\s]?\d{4}[-\s]?\d{2}(?!\d)/)?.[0];
   if (!candidate) return undefined;
   return normalizeCnpj(candidate);
 }

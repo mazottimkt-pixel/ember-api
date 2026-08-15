@@ -129,7 +129,8 @@ export async function runAgentTurn(ctx: AgentToolContext, input: AgentTurnInput)
     return { state, draft, documentId, reply: preEmission ? "Perfeito. Me envie a logo da sua empresa aqui mesmo. Assim que eu receber, preparo o documento com a sua identidade." : afterSuccess ? "Perfeito. Me envie a logo da sua empresa aqui mesmo. Pode enviar PNG ou JPG. Assim que eu receber, preparo sua identidade visual." : lumeMessages.brandingLogo, provider, documents, metrics, collection };
   }
   if ((input.action === "emit_default_document" || input.action === "use_default_document_style" || input.action === "continue_without_logo" || input.action === "cancel_branding_setup") && collection.branding?.preEmission) {
-    await persistBranding(ctx, { status: "default" });
+    // The standard model is the implicit fallback and must not depend on an
+    // optional branding preference being persisted before document creation.
     collection = { ...collection, branding: undefined };
     return runAgentTurn(ctx, { ...input, action: "confirm", collection });
   }
@@ -193,7 +194,7 @@ export async function runAgentTurn(ctx: AgentToolContext, input: AgentTurnInput)
       const next = await reviewOrPartyQuestion();
       return { ...next, draft, documentId, provider, documents, metrics, collection };
     } catch {
-      return { state: "collecting" as const, draft, documentId, reply: `O CNPJ informado não é válido.\n\nEnvie novamente o CNPJ da ${party.name}. Os demais dados foram preservados.`, provider, documents, metrics, collection };
+      return { state: "collecting" as const, draft, documentId, reply: `Esse CNPJ parece estar incompleto ou inválido. Pode conferir os números para mim?\n\nVocê pode enviar com ou sem pontuação. Os demais dados da ${party.name} foram preservados.`, provider, documents, metrics, collection };
     }
   }
   if (input.action === "create_quote" || input.action === "create_purchase_order" || input.action === "search_document") {

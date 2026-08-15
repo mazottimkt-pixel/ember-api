@@ -107,6 +107,6 @@ describe("ponte entre WhatsApp e agente Lume", () => {
     const output = buildWhatsAppError(inbound(), "DRAFT_CREATE_FAILED", "awaiting_confirmation");
     expect(output.text).toContain("Nenhum documento foi gerado");
     expect(output.text).toContain("Seus dados foram preservados");
-    expect(output.buttons).toEqual([{ id: "confirm", label: "Tentar novamente" }, { id: "show_main", label: "Menu de soluções" }]);
+    expect(output.buttons).toEqual([{ id: "confirm_document", label: "Tentar emitir novamente" }, { id: "correct_document", label: "Corrigir informações" }]);
   });
 });
