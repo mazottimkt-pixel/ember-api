@@ -107,7 +107,7 @@ export class FallbackProvider implements AgentAIProvider {
       intent: type ?? "unknown",
       draft: { ...current, type },
       ambiguities: [],
-      reply: type ? "Entendi. Vou reunir os dados necessários, um campo por vez." : "Olá. Eu sou a Lume, assistente comercial inteligente da Ember. Posso ajudar você a criar um orçamento, gerar um pedido de compra ou localizar um documento.",
+      reply: type ? "Entendi. Vou aproveitar as informações enviadas e perguntar somente o que faltar." : "A Lume não conseguiu identificar com segurança o que você deseja. Explique em uma frase ou envie “Menu de soluções”.",
     });
   }
   async transcribe(): Promise<string> { throw new Error("AI_UNAVAILABLE"); }

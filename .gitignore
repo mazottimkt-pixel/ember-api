@@ -48,5 +48,9 @@ next-env.d.ts
 .whatsapp-dev-url
 .whatsapp-dev-*.log
 .whatsapp-pilot-state.json
+.whatsapp-*.log
+.whatsapp-dev.pid
+.next-diagnostic.*.log
+.production-smoke.*.log
 
 .vercel

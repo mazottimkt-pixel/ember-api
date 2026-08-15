@@ -9,6 +9,7 @@ import {
 import { calculateDocument, formatBRL } from "@/lib/domain/calculations";
 import { documentSchema, type DocumentInput } from "@/lib/domain/schemas";
 import { formatDateBR } from "@/lib/domain/brazil";
+import { defaultBrandingSnapshot, type BrandingSnapshot } from "@/lib/branding/identity";
 
 type Meta = {
   organizationName: string;
@@ -21,6 +22,13 @@ type Meta = {
   validationCode: string;
   logoBytes?: Uint8Array;
   generatedAt?: Date;
+  branding?: BrandingSnapshot;
+  demonstration?: boolean;
+};
+
+const pdfColor = (hex: string) => {
+  const value = hex.replace("#", "");
+  return rgb(Number.parseInt(value.slice(0, 2), 16) / 255, Number.parseInt(value.slice(2, 4), 16) / 255, Number.parseInt(value.slice(4, 6), 16) / 255);
 };
 
 export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
@@ -30,6 +38,11 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const generated = meta.generatedAt ?? new Date();
+  const branding = meta.branding ?? defaultBrandingSnapshot();
+  const primary = pdfColor(branding.primaryColor);
+  const contrast = pdfColor(branding.contrastColor);
+  const light = pdfColor(branding.lightVariant);
+  const dark = pdfColor(branding.darkVariant);
   let logo: PDFImage | undefined;
   if (meta.logoBytes) {
     try {
@@ -77,8 +90,16 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
     );
   };
   const drawBrand = () => {
+    if (branding.templateId !== "essential") page.drawRectangle({ x: 0, y: height - 100, width, height: 100,
+      color: branding.templateId === "contemporary" ? primary : branding.templateId === "commercial" ? light : dark });
     if (logo)
-      page.drawImage(logo, { x: margin, y: y - 35, width: 70, height: 35 });
+      {
+        const ratio = logo.width / logo.height;
+        const logoWidth = Math.min(90, 38 * ratio);
+        const logoHeight = logoWidth / ratio;
+        page.drawRectangle({ x: margin - 5, y: y - 45, width: logoWidth + 10, height: Math.max(logoHeight, 30) + 10, color: rgb(1, 1, 1) });
+        page.drawImage(logo, { x: margin, y: y - 40, width: logoWidth, height: logoHeight });
+      }
     const brandX = logo ? 125 : margin;
     const brandLines = wrap(
       meta.organizationName,
@@ -92,7 +113,7 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
         y: y - 18 - index * 18,
         size: 15,
         font: bold,
-        color: rgb(0.08, 0.27, 0.18),
+        color: branding.templateId === "essential" ? primary : contrast,
       }),
     );
     y -= Math.max(54, brandLines.length * 18 + 26);
@@ -124,7 +145,7 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
       y: y - 20,
       width: width - margin * 2,
       height: 22,
-      color: rgb(0.09, 0.3, 0.21),
+      color: branding.templateId === "essential" ? dark : primary,
     });
     for (const [label, x] of [
       ["Descrição", margin + 7],
@@ -144,6 +165,10 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   };
 
   drawBrand();
+  if (meta.demonstration) {
+    page.drawText("MODELO DEMONSTRATIVO • PRÉVIA", { x: margin, y, size: 10, font: bold, color: primary });
+    y -= 24;
+  }
   text(data.type === "quote" ? "ORÇAMENTO" : "PEDIDO DE COMPRA", 15, true);
   text(`Número ${meta.number} | ${generated.toLocaleDateString("pt-BR")}`);
   for (const detail of meta.organizationDetails ?? []) text(detail, 8);
@@ -201,7 +226,11 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   text(`Subtotal: ${formatBRL(totals.subtotal)}`);
   text(`Descontos: ${formatBRL(totals.discount)}`);
   text(`Frete: ${formatBRL(totals.shipping)}`);
-  text(`TOTAL: ${formatBRL(totals.total)}`, 14, true);
+  if (branding.templateId === "commercial") {
+    page.drawRectangle({ x: margin, y: y - 25, width: width - margin * 2, height: 34, color: light });
+    y -= 8;
+  }
+  text(`TOTAL: ${formatBRL(totals.total)}`, branding.templateId === "commercial" ? 18 : 14, true);
   y -= 10;
   text(`Prazo: ${data.deadline}`, 9, true);
   text(`Pagamento: ${data.paymentTerms}`);
@@ -220,6 +249,6 @@ export async function generateDocumentPdf(input: DocumentInput, meta: Meta) {
   pdf.setTitle(
     `${data.type === "quote" ? "Orçamento" : "Pedido"} ${meta.number}`,
   );
-  pdf.setCreator("Ember Comercial");
+  pdf.setCreator("Lume");
   return pdf.save();
 }

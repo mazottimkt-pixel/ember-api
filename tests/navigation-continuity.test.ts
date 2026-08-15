@@ -1,0 +1,17 @@
+import{describe,expect,it}from"vitest";import{continuationOptions,renderNavigableResponse}from"@/lib/navigation/continuity";import{MENU_VERSION,menus,navigationState,resolveMenuInput,validateMenuGraph,type MenuId}from"@/lib/navigation/menu-engine";
+const submenus=Object.keys(menus).filter(id=>id!=="main")as MenuId[];
+import{safePreviousMenu}from"@/lib/navigation/menu-engine";
+describe("universal conversational continuity",()=>{
+ it.each(["menu principal","retornar ao menu principal","voltar ao menu principal","ir para o menu principal","voltar ao início","início","menu","quero o menu"])("recognizes main command %s",text=>expect(resolveMenuInput(text,navigationState("commercial"))?.action).toBe("show_main"));
+ it.each(["voltar","retornar","retorna","volte","menu anterior","voltar para trás","sair desta consulta"])("recognizes back %s",text=>expect(resolveMenuInput(text,navigationState("operations"))?.action).toBe("back"));
+ it.each(["falar com a Lume","quero fazer outra coisa","preciso de outra coisa","preciso de ajuda","quero falar com a inteligência artificial","pode me ajudar com outra coisa?"])("recognizes talk %s",text=>expect(resolveMenuInput(text,navigationState("finance_documents"))?.action).toBe("talk_to_lume"));
+ it.each(["cancelar","cancela","parar","sair","encerrar","desistir","não quero continuar"])("recognizes cancel %s",text=>expect(resolveMenuInput(text,navigationState("commercial"))?.action).toBe("cancel"));
+ it.each(submenus)("provides main exit in %s",id=>expect(resolveMenuInput("menu principal",navigationState(id))?.action).toBe("show_main"));
+ it("falls back to main when previous menu is invalid by version",()=>expect(resolveMenuInput("1",{current_menu:"operations",previous_menu:"commercial",menu_version:"old",last_menu_presented_at:new Date().toISOString()})?.action).toBe("show_commercial"));
+ it("uses main for invalid previous menu",()=>expect(safePreviousMenu("removed_menu")).toBe("main"));
+ it("resolves continuation numbers before submenu numbers",()=>{const state={...navigationState("operations","operations","search_operations"),continuation_actions:[{action:"choose_operations_period"as const,label:"Consultar outro período"},{action:"back"as const,label:"Voltar"},{action:"show_main"as const,label:"Menu principal"},{action:"talk_to_lume"as const,label:"Falar com a Lume"}]};expect(resolveMenuInput("1",state)?.action).toBe("choose_operations_period");expect(resolveMenuInput("3",state)?.action).toBe("show_main")});
+ it.each(["query_success","empty","recoverable_error","completed","cancelled","unavailable"]as const)("renders an exit for %s",kind=>{const result=renderNavigableResponse("Resposta",{kind,currentMenu:"operations",currentAction:"search_operations"});expect(result.reply).toContain("Menu principal");expect(result.reply).toContain("Falar com a Lume")});
+ it("renders operations period continuation without fake details",()=>{const result=renderNavigableResponse("Resumo",{kind:"query_success",currentMenu:"operations",options:[{action:"choose_operations_period",label:"Consultar outro período"},...continuationOptions("cancelled")]});expect(result.reply).toContain("Consultar outro período");expect(result.reply).not.toContain("Ver detalhes")});
+ it("validates every reachable menu and action",()=>expect(validateMenuGraph()).toEqual({valid:true,errors:[]}));
+ it("keeps the current atomic version",()=>expect(MENU_VERSION).toBe("2026-08-homologation-v2"));
+});

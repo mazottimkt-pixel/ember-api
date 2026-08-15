@@ -19,6 +19,13 @@ export const agentDraftSchema = z.object({
   deliveryAddress: z.string().trim().max(500).nullable(),
   notes: z.string().trim().max(2000).nullable(),
   documentQuery: z.string().trim().max(160).nullable(),
+  quotedAmount: z.number().finite().min(0).nullable().optional(),
+  amountScope: z.enum(["amount_scope_pending", "unit", "total"]).nullable().optional(),
+  quotedQuantity: z.number().positive().nullable().optional(),
+  quotedItemDescription: z.string().trim().max(500).nullable().optional(),
+  totalPrice: z.number().finite().min(0).nullable().optional(),
+  itemType: z.enum(["product","service","mixed","unknown"]).nullable().optional(),
+  paymentDetails: z.object({method:z.enum(["credit_card","debit_card","pix","cash","boleto","split_payment","other"]),installments:z.number().int().positive().optional(),downPaymentPercent:z.number().min(0).max(100).optional(),balance:z.string().max(160).optional(),dueTerms:z.string().max(300).optional(),notes:z.string().max(300).optional(),display:z.string().min(1).max(300)}).nullable().optional(),
 });
 
 export const agentDecisionSchema = z.object({
@@ -35,6 +42,8 @@ export type AgentState = "menu" | "collecting" | "awaiting_confirmation" | "conf
 export const emptyAgentDraft = (): AgentDraft => ({
   type: null, counterpartyName: null, items: [], shipping: 0, validity: null,
   deadline: null, paymentTerms: null, deliveryAddress: null, notes: null, documentQuery: null,
+  quotedAmount: null, amountScope: null, quotedQuantity: null, quotedItemDescription: null, totalPrice: null,
+  itemType:null,paymentDetails:null,
 });
 
 export const agentRequestSchema = z.object({

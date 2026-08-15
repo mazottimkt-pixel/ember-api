@@ -33,17 +33,25 @@ export function ListToolbar({
 export function Pagination({
   page,
   hasMore,
+  searchParams = {},
 }: {
   page: number;
   hasMore: boolean;
+  searchParams?: Record<string, string | undefined>;
 }) {
+  const href = (nextPage: number) => {
+    const query = new URLSearchParams();
+    Object.entries(searchParams).forEach(([key, value]) => value && query.set(key, value));
+    query.set("page", String(nextPage));
+    return `?${query.toString()}`;
+  };
   return (
     <nav className="pagination" aria-label="Paginação">
-      <a aria-disabled={page <= 1} href={`?page=${Math.max(1, page - 1)}`}>
+      <a aria-disabled={page <= 1} href={href(Math.max(1, page - 1))}>
         ← Anterior
       </a>
       <span>Página {page}</span>
-      <a aria-disabled={!hasMore} href={`?page=${page + 1}`}>
+      <a aria-disabled={!hasMore} href={href(page + 1)}>
         Próxima →
       </a>
     </nav>

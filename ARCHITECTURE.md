@@ -6,6 +6,8 @@ Lume é a assistente comercial inteligente da Ember. Entradas de canal são conv
 
 `ChannelMessageProcessor` aplica claim persistente por identificador externo, lock por organização e conversa, estados `received`, `processing`, `responded` e `failed`, retry somente recuperável e fallback humano. `whatsapp_channels` vincula Phone Number ID à organização sem armazenar token ou segredo. Trocas são lógicas, preservam o canal anterior e mantêm referência transacional de rollback.
 
+`lib/whatsapp/agent-bridge.ts` conecta a entrada normalizada à mesma execução de agente do Agent Lab. A ponte mantém uma conversa por Phone Number ID e remetente, converte botões em ações explícitas, segmenta respostas longas, bloqueia remetentes fora da allowlist antes de chamar o modelo e só anexa botões ou PDF após o estado apropriado. Após `confirm`, o servidor gera o PDF validado, grava-o no bucket privado e fornece à Cloud API uma URL assinada temporária. Falhas antes de qualquer saída usam o fallback fixo; falhas depois de uma entrega parcial não disparam outra resposta e evitam duplicidade.
+
 O motor de estado e as ferramentas continuam independentes do canal. Adapters apenas normalizam entrada e saída; eles não gravam documentos nem acessam diretamente as ferramentas comerciais.
 
 ## Camada de inteligência artificial

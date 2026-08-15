@@ -1,0 +1,1 @@
+drop trigger if exists checklist_item_update_guard on public.operational_checklist_items;drop function if exists public.guard_checklist_item_update();drop trigger if exists operational_document_transition_guard on public.operational_documents;drop function if exists public.guard_operational_document_transition();

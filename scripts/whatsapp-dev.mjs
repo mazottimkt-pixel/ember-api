@@ -1,4 +1,4 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { loadLocalEnv } from "./load-env.mjs";
@@ -11,6 +11,29 @@ if (!env.META_APP_SECRET) throw new Error("META_APP_SECRET ausente no .env.local
 
 const children = [];
 const urlFile = join(process.cwd(), ".whatsapp-dev-url");
+const lockFile = join(process.cwd(), ".whatsapp-dev.pid");
+
+if (process.argv.includes("--check")) {
+  if (!existsSync(urlFile)) throw new Error("WHATSAPP_DEV_URL_AUSENTE: execute npm run whatsapp:dev primeiro");
+  const callbackUrl = readFileSync(urlFile, "utf8").trim();
+  const publicOrigin = new URL(callbackUrl).origin;
+  await waitForHttp(`${NEXT_ORIGIN}${WEBHOOK_PATH}`, { expected: [403], timeoutMs: 15_000 });
+  console.log("✓ Servidor Next ativo: localhost:3000");
+  await waitForHttp(`${PROXY_ORIGIN}${WEBHOOK_PATH}`, { expected: [403], timeoutMs: 15_000 });
+  console.log("✓ Proxy restrito ativo: localhost:3100");
+  await signedPostHealth(PROXY_ORIGIN, env.META_APP_SECRET);
+  console.log("✓ POST local assinado: HTTP 200");
+  await waitForHttp(callbackUrl, { expected: [403], timeoutMs: 30_000 });
+  console.log("✓ Túnel HTTPS ativo");
+  const challenge = "EMBER_WHATSAPP_DEV_CHECK_OK";
+  const verification = await waitForHttp(verificationUrl(publicOrigin, verifyToken, challenge), { expected: [200], timeoutMs: 30_000 });
+  if ((await verification.text()) !== challenge) throw new Error("WEBHOOK_CHALLENGE_BODY_INVALID");
+  console.log(`✓ Callback URL atual: ${callbackUrl}`);
+  console.log("✓ GET de verificação: HTTP 200, challenge exato");
+  console.log("AMBIENTE WHATSAPP PRONTO");
+  process.exit(0);
+}
+
 let stopping = false;
 function stop() {
   if (stopping) return;
@@ -21,6 +44,7 @@ function stop() {
     else child.kill("SIGTERM");
   }
   try { rmSync(urlFile, { force: true }); } catch {}
+  try { rmSync(lockFile, { force: true }); } catch {}
 }
 process.once("SIGINT", () => { stop(); process.exit(0); });
 process.once("SIGTERM", () => { stop(); process.exit(0); });
@@ -29,6 +53,8 @@ process.once("exit", stop);
 function run(command, args, label, options = {}) {
   const child = spawn(command, args, { cwd: process.cwd(), env, windowsHide: true, ...options });
   children.push(child);
+  child.stdout?.on("data", (chunk) => process.stdout.write(`[${label}] ${chunk}`));
+  child.stderr?.on("data", (chunk) => process.stderr.write(`[${label}] ${chunk}`));
   child.once("exit", (code) => { if (!stopping) { console.error(`${label} encerrou inesperadamente (código ${code}). Ambiente NÃO pronto.`); stop(); process.exitCode = 1; } });
   return child;
 }
@@ -40,9 +66,22 @@ function cloudflaredExecutable() {
 }
 
 try {
+  try {
+    const descriptor = openSync(lockFile, "wx", 0o600);
+    writeFileSync(descriptor, `${process.pid}\n`, "utf8"); closeSync(descriptor);
+  } catch {
+    let active = false;
+    try { const pid = Number(readFileSync(lockFile, "utf8").trim()); if (pid > 0) { process.kill(pid, 0); active = true; } } catch {}
+    if (active) throw new Error("WHATSAPP_DEV_ALREADY_RUNNING");
+    rmSync(lockFile, { force: true });
+    const descriptor = openSync(lockFile, "wx", 0o600);
+    writeFileSync(descriptor, `${process.pid}\n`, "utf8"); closeSync(descriptor);
+  }
   rmSync(join(process.cwd(), ".next"), { recursive: true, force: true });
   const nextCommand = process.platform === "win32" ? "cmd.exe" : "npm";
-  const nextArgs = process.platform === "win32" ? ["/d", "/s", "/c", "npm run dev"] : ["run", "dev"];
+  const nextArgs = process.platform === "win32"
+    ? ["/d", "/s", "/c", "npm run dev -- --hostname 127.0.0.1 --port 3000"]
+    : ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", "3000"];
   run(nextCommand, nextArgs, "Next.js", { stdio: ["ignore", "pipe", "pipe"] });
   await waitForHttp(`${NEXT_ORIGIN}${WEBHOOK_PATH}`, { expected: [403], timeoutMs: 75_000 });
   console.log("✓ Servidor Next ativo: localhost:3000");

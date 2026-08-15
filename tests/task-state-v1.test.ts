@@ -1,0 +1,11 @@
+import { describe,expect,it } from "vitest";
+import { emptyAgentDraft } from "@/lib/ai/contracts";
+import { mapLegacyContext } from "@/lib/agent-v1/legacy-mapper";
+import { applySemanticPatches } from "@/lib/agent-v1/patches";
+import { createTaskState, validateTaskState } from "@/lib/agent-v1/task-state";
+
+describe("TaskStateV1",()=>{
+ it("é a fonte canônica de tarefa e pergunta",()=>{const task=createTaskState("quote",{draft:{...emptyAgentDraft(),type:"quote"}});expect(task.version).toBe("lume-task-state-v1");expect(task.currentQuestion).toMatchObject({taskId:task.id,revision:task.revision,type:"counterparty"});expect(validateTaskState(task).classification).toBe("VALID");});
+ it("recupera contexto legado contaminado sem reutilizar pagamento como item",()=>{const mapped=mapLegacyContext({state:"awaiting_confirmation",context:{draft:{...emptyAgentDraft(),type:"quote",counterpartyName:"Alfa",items:[{description:"vezes",quantity:20,unit:"un",unitPrice:30,discount:0}],deadline:"20 dias",paymentTerms:"cartao"},collection:{expectedAnswer:"correction",pendingField:"correção"}}});expect(mapped.classification).toBe("CORRUPTED_RECOVERABLE");expect(mapped.task.collectedData.items).toEqual([]);expect(mapped.task.collectedData.paymentDetails).toMatchObject({method:"credit_card"});expect(mapped.legacyConflict).toBe(true);});
+ it("protege campos fora do contexto de pagamento",()=>{const initial=createTaskState("quote",{draft:{...emptyAgentDraft(),type:"quote",counterpartyName:"Alfa",items:[{description:"Lâmpadas",quantity:20,unit:"un",unitPrice:30,discount:0}],deadline:"20 dias",itemType:"product"}}),task={...initial,currentQuestion:{type:"payment_terms",promptId:"p",taskId:initial.id,revision:initial.revision,allowedActions:[],askedAt:new Date().toISOString()}};const result=applySemanticPatches(task,[{operation:"set",field:"payment",value:"cartão de crédito em 2 vezes",confidence:.99,source:"user_current_message"},{operation:"update",field:"item",value:{description:"vezes",quantity:2,unitPrice:30},confidence:.99,source:"user_current_message"}]);expect(result.task.collectedData.items[0].description).toBe("Lâmpadas");expect(result.task.collectedData.paymentDetails).toMatchObject({method:"credit_card",installments:2});expect(result.rejected).toContainEqual({field:"item",reason:"field_not_authorized_by_current_question"});});
+});

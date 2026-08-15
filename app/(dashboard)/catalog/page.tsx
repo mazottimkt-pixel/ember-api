@@ -12,29 +12,39 @@ export default async function Page({
     page?: string;
     sort?: string;
     deleted?: string;
+    kind?: string;
+    status?: string;
   }>;
 }) {
   const p = await searchParams,
     page = Math.max(1, Number(p.page) || 1),
     size = 10;
-  const { supabase } = await requireMembership();
+  const { supabase, organizationId } = await requireMembership();
   let query = supabase
     .from("catalog_items")
-    .select("id,kind,name,description,unit,unit_price,deleted_at", {
+    .select("id,kind,name,description,unit,unit_price,active,created_at,deleted_at", {
       count: "exact",
-    });
+    }).eq("organization_id", organizationId);
   query = p.deleted
     ? query.not("deleted_at", "is", null)
     : query.is("deleted_at", null);
   if (p.q) query = query.ilike("name", `%${p.q.replace(/[%_]/g, "")}%`);
+  if (p.kind === "product" || p.kind === "service") query = query.eq("kind", p.kind);
+  if (p.status === "active") query = query.eq("active", true);
+  if (p.status === "inactive") query = query.eq("active", false);
   query =
     p.sort === "newest"
       ? query.order("created_at", { ascending: false })
       : query.order("name");
-  const { data = [], count = 0 } = await query.range(
+  const { data: result, count = 0 } = await query.range(
     (page - 1) * size,
     page * size - 1,
   );
+  const data = result ?? [];
+  const ids = data.map((item) => item.id);
+  const { data: usages = [] } = ids.length ? await supabase.from("document_items").select("catalog_item_id").eq("organization_id", organizationId).in("catalog_item_id", ids) : { data: [] };
+  const usageCount = new Map<string, number>();
+  usages?.forEach((row) => row.catalog_item_id && usageCount.set(row.catalog_item_id, (usageCount.get(row.catalog_item_id) ?? 0) + 1));
   return (
     <>
       <div className="topline">
@@ -90,6 +100,7 @@ export default async function Page({
           showDeleted={Boolean(p.deleted)}
           placeholder="Buscar produto ou serviço…"
         />
+        <form className="role-filters" method="get"><input type="hidden" name="q" value={p.q ?? ""}/><button className="button secondary" name="kind" value="">Todos</button><button className="button secondary" name="kind" value="product">Produtos</button><button className="button secondary" name="kind" value="service">Serviços</button><select name="status" defaultValue={p.status ?? ""}><option value="">Ativos e inativos</option><option value="active">Ativos</option><option value="inactive">Inativos</option></select><button className="button secondary">Filtrar</button></form>
         {!data?.length ? (
           <EmptyState
             title="Catálogo vazio"
@@ -104,6 +115,7 @@ export default async function Page({
                   <th>Tipo</th>
                   <th>Unidade</th>
                   <th>Preço</th>
+                  <th>Uso</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -117,6 +129,7 @@ export default async function Page({
                     <td>{item.kind === "service" ? "Serviço" : "Produto"}</td>
                     <td>{item.unit}</td>
                     <td>{formatBRL(Number(item.unit_price))}</td>
+                    <td>{usageCount.get(item.id) ?? 0} uso(s)<div className="help">{item.active ? "Ativo" : "Inativo"}</div></td>
                     <td>
                       {item.deleted_at ? (
                         <form action={restoreCatalog}>
@@ -140,7 +153,7 @@ export default async function Page({
             </table>
           </div>
         )}
-        <Pagination page={page} hasMore={page * size < (count ?? 0)} />
+        <Pagination page={page} hasMore={page * size < (count ?? 0)} searchParams={p} />
       </section>
     </>
   );

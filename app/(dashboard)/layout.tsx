@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/sidebar";
+import { LumeCentral } from "@/components/lume-central";
 export default function DashboardLayout({
   children,
 }: {
@@ -8,6 +9,7 @@ export default function DashboardLayout({
     <div className="shell">
       <Sidebar />
       <main className="content">{children}</main>
+      <LumeCentral />
     </div>
   );
 }

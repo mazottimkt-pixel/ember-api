@@ -1,0 +1,3 @@
+export type ExternalLookupResult={label:string;value:string;sourceUrl:string;confidence:"medium"|"low"};
+export type ExternalLookupProvider={lookup(query:string):Promise<ExternalLookupResult[]>};
+export async function externalLookup(query:string,provider?:ExternalLookupProvider){const normalized=query.trim();if(normalized.length<3||normalized.length>240)return{status:"needs_detail" as const,results:[]};if(!provider)return{status:"unavailable" as const,results:[]};const results=(await provider.lookup(normalized)).filter(item=>/^https:\/\//i.test(item.sourceUrl)).slice(0,5);if(!results.length)return{status:"not_verified" as const,results:[]};return{status:results.length===1?"confirm" as const:"choose" as const,results};}

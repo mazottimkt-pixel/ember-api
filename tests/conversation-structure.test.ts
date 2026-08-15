@@ -1,0 +1,17 @@
+import {describe,expect,it} from "vitest";
+import {createConversationPrompt,resolveActivePrompt,validateConversationPrompts} from "@/lib/navigation/conversation-prompts";
+import {resolveGlobalNavigation,renderMenu} from "@/lib/navigation/menu-engine";
+import {normalizePaymentTerms} from "@/lib/domain/payment-terms";
+import {lumeMessages} from "@/lib/whatsapp/lume-messages";
+
+describe("estrutura conversacional do WhatsApp",()=>{
+  it("abre de modo conversacional sem exigir menu",()=>{expect(lumeMessages.opening).toContain("O que você precisa hoje?");expect(lumeMessages.opening).not.toMatch(/1 —|Menu de soluções/);});
+  it("menu solicitado conserva as seis macroáreas",()=>{const menu=renderMenu("main");for(const label of ["Comercial","Operacional","Financeiro e documentos","Conteúdo e marketing","Consultas e gestão","Falar com a Lume"])expect(menu).toContain(label);});
+  it.each(["menu","Menu de soluções","mostrar opções","Voltar ao menu","retornar ao menu","voltar ao início"])("reconhece comando global %s",value=>expect(resolveGlobalNavigation(value)).toBe("show_main"));
+  it("resolve 1 conforme o prompt ativo, nunca globalmente",()=>{const greeting=createConversationPrompt({promptType:"greeting",flowId:"opening",options:[{number:1,id:"show_main",label:"Menu de soluções"}]});const confirmation=createConversationPrompt({promptType:"confirmation",flowId:"quote",options:[{number:1,id:"confirm",label:"Confirmar"},{number:2,id:"correct",label:"Corrigir"},{number:3,id:"cancel",label:"Cancelar"}]});expect(resolveActivePrompt("1",greeting)?.id).toBe("show_main");expect(resolveActivePrompt("1",confirmation)?.id).toBe("confirm");expect(resolveActivePrompt("1")).toBeUndefined();});
+  it("isola as três escolhas de personalização",()=>{const prompt=createConversationPrompt({promptType:"branding_offer",flowId:"quote",options:[{number:1,id:"customize_documents_now",label:"Personalizar agora"},{number:2,id:"use_default_document_style",label:"Usar modelo padrão"},{number:3,id:"configure_documents_later",label:"Configurar depois"}]});expect(resolveActivePrompt("1",prompt)?.id).toBe("customize_documents_now");expect(resolveActivePrompt("2",prompt)?.id).toBe("use_default_document_style");expect(resolveActivePrompt("3",prompt)?.id).toBe("configure_documents_later");});
+  it("rejeita prompt expirado e detecta colisões",()=>{const expired=createConversationPrompt({promptType:"continuation",flowId:"old",expiresAt:"2020-01-01T00:00:00.000Z",options:[{number:1,id:"show_main",label:"Menu"}]});expect(resolveActivePrompt("1",expired)).toBeUndefined();const invalid={...expired,expiresAt:undefined,options:[{number:1,id:"a",label:"A"},{number:1,id:"b",label:"B"}]};expect(validateConversationPrompts([invalid]).errors).toContain(`${invalid.promptId}:duplicate_number:1`);expect(validateConversationPrompts([invalid,{...invalid,promptId:"second"}]).errors).toContain("multiple_active_prompts");});
+  it.each(["A vista","à vista","avista","pagamento a vista"])("normaliza %s",value=>expect(normalizePaymentTerms(value)).toBe("À vista"));
+  it("preserva condição que não significa pagamento integral",()=>expect(normalizePaymentTerms("50% de entrada")).toBe("50% de entrada"));
+  it("fallback de confirmação não expõe falha técnica",()=>{expect(lumeMessages.confirmationButtonsUnavailable).toContain("Para continuar");expect(lumeMessages.confirmationButtonsUnavailable).not.toContain("botões não ficaram");});
+});

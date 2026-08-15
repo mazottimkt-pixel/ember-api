@@ -1,0 +1,1 @@
+export function hybridOrchestratorEnabled(channel:"panel"|"whatsapp"){return channel==="whatsapp"?process.env.WHATSAPP_HYBRID_ORCHESTRATOR_ENABLED==="true":process.env.CENTRAL_HYBRID_ORCHESTRATOR_ENABLED!=="false";}

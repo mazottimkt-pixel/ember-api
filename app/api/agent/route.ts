@@ -4,6 +4,14 @@ import { agentDraftSchema, agentRequestSchema, emptyAgentDraft, type AgentState 
 import type { AgentToolContext } from "@/lib/ai/tools";
 import { runAgentTurn } from "@/lib/ai/turn";
 import { normalizeAgentLabInput } from "@/lib/channels/agent-lab-adapter";
+import type { AgentCollectionContext } from "@/lib/ai/validity";
+import { centralReadOnlyReply } from "@/lib/ai/central-queries";
+import { runContentConversation } from "@/lib/content/conversation";
+import { orchestrateHybrid } from "@/lib/orchestrator/orchestrator";
+import { presentDecision } from "@/lib/orchestrator/presentation";
+import { applyEntitiesToAgentDraft } from "@/lib/orchestrator/entities";
+import { handleWhatsAppMenuQuery } from "@/lib/whatsapp/menu-queries";
+import { hybridOrchestratorEnabled } from "@/lib/orchestrator/policy";
 
 export const runtime = "nodejs";
 function publicError(error: unknown) {
@@ -38,22 +46,36 @@ export async function POST(request: Request) {
   if (!conversation) throw new Error("CONVERSATION_NOT_CREATED");
   await supabase.from("messages").insert({ organization_id: organizationId, conversation_id: conversation.id, whatsapp_message_id: key, direction: "inbound", kind: "text", content: { text: input.text, action: input.action }, processing_status: "processing" });
   const current = agentDraftSchema.catch(emptyAgentDraft()).parse(conversation.context.draft);
-  let draft = current; let state: AgentState = conversation.state; let reply = ""; let provider = "server";
+  let draft = current; let state: AgentState = conversation.state; let reply = ""; let provider = "server"; let requestedAction=input.action;
   let documentId = typeof conversation.context.documentId === "string" ? conversation.context.documentId : undefined;
+  let collection = (conversation.context.collection ?? {}) as AgentCollectionContext;
   let metrics: ReturnType<NonNullable<import("@/lib/ai/provider").AgentAIProvider["getLastMetrics"]>>;
   let documents: unknown[] | undefined;
   const ctx: AgentToolContext = { organizationId, supabase, userId: user.id };
   try {
-    const result = await runAgentTurn(ctx, { action: input.action, text: input.text, idempotencyKey: input.idempotencyKey, state, draft, documentId });
-    ({ state, draft, documentId, reply, provider, documents, metrics } = result);
+    const contentTurn=input.action==="message"?await runContentConversation({supabase,organizationId,userId:user.id},input.text,input.idempotencyKey,collection.contentConversation):{handled:false as const};
+    const hybridDecision=!contentTurn.handled&&input.action==="message"&&hybridOrchestratorEnabled("panel")?orchestrateHybrid({message:input.text,channel:"panel",state,activeFlow:state==="collecting"&&draft.type?draft.type:undefined,draft,context:collection.hybrid,featureFlags:{}}):null;
+    let hybridQueryReply:string|null=null;
+    if(hybridDecision&&!hybridDecision.requiresConfirmation&&["search_operations","query_confirmed_values","search_purchase_orders","query_documents_attention","query_customers","query_suppliers","query_catalog","query_management_summary"].includes(hybridDecision.suggestedAction))hybridQueryReply=await handleWhatsAppMenuQuery(ctx,hybridDecision.suggestedAction as import("@/lib/navigation/menu-engine").MenuAction);
+    const routeHybrid=Boolean(hybridDecision&&["create_quote","create_purchase_order","search_document"].includes(hybridDecision.suggestedAction)&&(!hybridDecision.requiresConfirmation||hybridDecision.reasonCode==="explicit_intent_confirmation"));
+    if(routeHybrid&&hybridDecision){requestedAction=hybridDecision.suggestedAction as typeof requestedAction;if(hybridDecision.reasonCode==="explicit_intent_confirmation"&&(hybridDecision.intent==="create_quote"||hybridDecision.intent==="create_purchase_order"))draft=applyEntitiesToAgentDraft(draft,hybridDecision.entities,hybridDecision.intent==="create_quote"?"quote":"purchase_order");collection={...collection,hybrid:{...collection.hybrid,pendingDecision:undefined,lastIntent:hybridDecision.intent,recentEntities:hybridDecision.entities}};}
+    const readOnlyReply = !contentTurn.handled&&!hybridDecision&&input.action === "message" && ["menu", "cancelled", "confirmed"].includes(state) ? await centralReadOnlyReply({ supabase, organizationId }, input.text) : null;
+    if(contentTurn.handled){reply=contentTurn.reply;state="menu";provider="server";collection={...collection,contentConversation:contentTurn.state};}
+    else if(hybridQueryReply){reply=hybridQueryReply;state="menu";provider="hybrid-local";collection={...collection,hybrid:{...collection.hybrid,lastIntent:hybridDecision!.intent,recentEntities:hybridDecision!.entities}};}
+    else if(hybridDecision&&!routeHybrid){reply=presentDecision(hybridDecision);state="menu";provider="hybrid-local";collection={...collection,hybrid:{...collection.hybrid,pendingDecision:hybridDecision,lastIntent:hybridDecision.intent,recentEntities:hybridDecision.entities}};}
+    else if (readOnlyReply) { reply = readOnlyReply; state = "menu"; provider = "server"; }
+    else {
+      const result = await runAgentTurn(ctx, { action: requestedAction, text: input.text, idempotencyKey: input.idempotencyKey, state, draft, documentId, collection });
+      ({ state, draft, documentId, reply, provider, documents, metrics, collection } = result);
+    }
   } catch (error) {
     console.error("agent.process.failed", { code: error instanceof Error ? error.message : "UNKNOWN", organizationId, conversationId: conversation.id });
     state = "error"; reply = publicError(error);
   }
   const payload = { reply, state, draft, documentId, documents, provider, metrics, pdfUrl: state === "confirmed" && documentId ? `/api/documents/${documentId}/pdf` : undefined };
-  await supabase.from("conversations").update({ state, context: { draft, documentId }, updated_at: new Date().toISOString() }).eq("id", conversation.id).eq("organization_id", organizationId);
+  await supabase.from("conversations").update({ state, context: { draft, documentId, collection }, updated_at: new Date().toISOString() }).eq("id", conversation.id).eq("organization_id", organizationId);
   await supabase.from("messages").update({ processing_status: "processed", content: { text: input.text, action: input.action, response: payload } }).eq("whatsapp_message_id", key).eq("organization_id", organizationId);
   await supabase.from("messages").insert({ organization_id: organizationId, conversation_id: conversation.id, whatsapp_message_id: `${key}:response`, direction: "outbound", kind: "text", content: { text: reply }, processing_status: "processed" });
-  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: `agent.${input.action}`, entity_type: "conversation", entity_id: conversation.id, metadata: { state, provider, idempotencyKey: input.idempotencyKey, metrics } });
+  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: `agent.${input.action}`, entity_type: "conversation", entity_id: conversation.id, metadata: { state, provider, idempotencyKey: input.idempotencyKey, metrics,hybrid:collection.hybrid?.pendingDecision?{intent:collection.hybrid.pendingDecision.intent,confidenceLevel:collection.hybrid.pendingDecision.confidenceLevel,extractedFieldCount:Object.keys(collection.hybrid.pendingDecision.entities).length,missingFieldCount:collection.hybrid.pendingDecision.missingFields.length,clarificationRequired:collection.hybrid.pendingDecision.clarificationRequired,confirmationRequired:collection.hybrid.pendingDecision.requiresConfirmation,securityEvent:collection.hybrid.pendingDecision.securityEvent}:undefined } });
   return NextResponse.json({ conversationId: conversation.id, ...payload });
 }

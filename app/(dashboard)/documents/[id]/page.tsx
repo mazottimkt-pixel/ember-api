@@ -54,6 +54,7 @@ export default async function DocumentPage({
           </p>
         </div>
         <div className="actions">
+          {doc.type==="quote"&&doc.confirmed_at&&["confirmed","generated","sent"].includes(doc.status)&&<Link className="button secondary" href={`/operations/from-quote/${id}`}>Criar ordem de serviço</Link>}
           {doc.status === "draft" && (
             <Link className="button secondary" href={`/documents/${id}/edit`}>
               Editar

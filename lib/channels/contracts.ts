@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const channelMessageKindSchema = z.enum(["text", "audio", "button", "document", "status"]);
+export const channelMessageKindSchema = z.enum(["text", "audio", "button", "document", "image", "status"]);
 export const channelProcessingStatusSchema = z.enum(["received", "processing", "responded", "failed"]);
 export const channelNameSchema = z.enum(["agent-lab", "whatsapp"]);
 
@@ -25,6 +25,7 @@ export const normalizedOutboundSchema = z.object({
   text: z.string().trim().max(8000).optional(),
   mediaReference: z.string().trim().max(1000).optional(),
   buttons: z.array(z.object({ id: z.string().max(160), label: z.string().max(80) })).max(3).optional(),
+  list: z.object({ buttonLabel: z.string().trim().max(20), sections: z.array(z.object({ title: z.string().trim().max(24), rows: z.array(z.object({ id: z.string().max(160), title: z.string().trim().max(24), description: z.string().trim().max(72).optional() })).min(1).max(10) })).min(1).max(10) }).optional(),
   replyToExternalMessageId: z.string().trim().max(255).optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
 });

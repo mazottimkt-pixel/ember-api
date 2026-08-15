@@ -1,0 +1,1 @@
+drop policy if exists content_assets_write on storage.objects;drop policy if exists content_assets_read on storage.objects;delete from storage.buckets where id='content-assets';drop table if exists public.content_images,public.content_projects,public.content_brand_profiles cascade;

@@ -1,0 +1,20 @@
+import{beforeEach,describe,expect,it,vi}from"vitest";
+vi.mock("server-only",()=>({}));
+const fetchMock=vi.fn();vi.stubGlobal("fetch",fetchMock);
+import{emptyAgentDraft}from"@/lib/ai/contracts";
+import{deriveAdministrativeTask}from"@/lib/orchestrator/task-model";
+import{externalLookup}from"@/lib/ai/external-lookup";
+import{resolveActivePrompt,createConversationPrompt}from"@/lib/navigation/conversation-prompts";
+import{orchestrateHybrid}from"@/lib/orchestrator/orchestrator";
+import{lumeMessages}from"@/lib/whatsapp/lume-messages";
+import{WhatsAppChannelAdapter}from"@/lib/channels/whatsapp-adapter";
+describe("Lume como agente administrativo",()=>{
+ beforeEach(()=>{fetchMock.mockReset();process.env.WHATSAPP_TEST_RECIPIENT="551198765432";});
+ it("abre com conversa natural sem exigir menu ou número",()=>{expect(lumeMessages.opening).toContain("O que você precisa hoje?");expect(lumeMessages.opening).not.toMatch(/1\s+—|Menu de soluções/);});
+ it("representa orçamento como tarefa orientada a objetivo",()=>{const task=deriveAdministrativeTask("collecting",{...emptyAgentDraft(),type:"quote",counterpartyName:"Alfa"},{});expect(task).toMatchObject({type:"create_quote",executionState:"collecting",objective:"Preparar e entregar orçamento"});expect(task.missingData.length).toBeGreaterThan(0);});
+ it.each(["pode emitir","está correto","pode gerar","confirmado","sim","manda o PDF"])('aceita "%s" como confirmação contextual',text=>{const prompt=createConversationPrompt({promptType:"confirmation",flowId:"quote",expectedState:"awaiting_confirmation",options:[{number:1,id:"confirm_document",label:"Emitir documento"},{number:2,id:"correct_document",label:"Corrigir informações"},{number:3,id:"cancel_document",label:"Cancelar"}]});expect(resolveActivePrompt(text,prompt,"awaiting_confirmation")?.id).toBe("confirm_document");});
+ it("entende compra natural sem frase rígida",()=>expect(orchestrateHybrid({message:"Preciso comprar 20 cadeiras da Empresa Alfa por R$ 250 cada",channel:"whatsapp",state:"menu"}).intent).toBe("create_purchase_order"));
+ it("pesquisa externa exige fonte HTTPS e confirmação",async()=>{const provider={lookup:vi.fn(async()=>[{label:"Empresa Alfa",value:"Avenida X, 123 — Brasília/DF",sourceUrl:"https://fonte.gov.br/alfa",confidence:"medium"as const}])};await expect(externalLookup("endereço da Empresa Alfa",provider)).resolves.toMatchObject({status:"confirm",results:[{confidence:"medium"}]});});
+ it("não inventa pesquisa quando não existe provider",async()=>expect(externalLookup("endereço da Empresa Alfa")).resolves.toEqual({status:"unavailable",results:[]}));
+ it("envia várias alternativas como lista nativa",async()=>{fetchMock.mockResolvedValue(new Response(JSON.stringify({messages:[{id:"wamid.list"}]}),{status:200}));const adapter=new WhatsAppChannelAdapter({phoneNumberId:"phone",accessToken:"token",apiVersion:"v23.0"});await adapter.deliver({channel:"whatsapp",conversationId:"551198765432",kind:"text",text:"Encontrei documentos",list:{buttonLabel:"Ver documentos",sections:[{title:"Resultados",rows:[{id:"doc:1",title:"ORC-1",description:"Empresa Alfa"},{id:"doc:2",title:"ORC-2"}]}]},metadata:{}});const body=String(fetchMock.mock.calls[0][1]?.body);expect(body).toContain('"type":"list"');expect(body).toContain('"button":"Ver documentos"');});
+});
