@@ -36,6 +36,15 @@ export function parseItemBundle(text: string) {
   return { description, quantity: quantityValue, unitPrice, total: quantityValue * unitPrice, itemType: product && !service ? "product" as const : service && !product ? "service" as const : product && service ? "mixed" as const : "unknown" as const };
 }
 
+export function parseCounterpartyAnswer(text: string) {
+  const value = text.replace(/\s+/g, " ").trim().replace(/[.!?]+$/g, "").trim();
+  if (value.length < 2 || value.length > 160) return undefined;
+  const normalized = normalize(value);
+  if (/\b(?:cancel|cancela|cancelar|esquece|volta|menu|orcamento|pedido de compra|faz(?:er)? outra coisa|criar|comecar|continuar)\b/.test(normalized)) return undefined;
+  if (!/^[\p{L}0-9][\p{L}0-9 .&'’-]*$/u.test(value)) return undefined;
+  return value;
+}
+
 export function parseDeadlineAnswer(text: string) { const match = /\b(\d{1,4})\s+dias?(?:\s+uteis)?\b/i.exec(normalize(text)); return match && Number(match[1]) > 0 ? `${Number(match[1])} dias${/uteis/i.test(text) ? " úteis" : ""}` : undefined; }
 export function explicitQuantityCorrection(text: string) { const match = /(?:na verdade|corrig|troca|muda|sao|são)\D{0,20}(\d+)\s*(?:unidades?)?(?:\s+([\p{L}-]+))?/iu.exec(text); return match ? { quantity: Number(match[1]), description: match[2] } : undefined; }
 export type ExplicitCorrection =

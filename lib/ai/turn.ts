@@ -9,7 +9,7 @@ import { activeBranding, persistBranding } from "@/lib/branding/store";
 import { normalizeBrandColor, templateNames, type DocumentTemplateId } from "@/lib/branding/identity";
 import { normalizePaymentTerms, parsePaymentTerms } from "@/lib/domain/payment-terms";
 import { applyEntitiesToAgentDraft, extractEntities } from "@/lib/orchestrator/entities";
-import { counterpartyRoleConflict, expectedAnswerFor, explicitQuantityCorrection, parseDeadlineAnswer, parseExplicitCorrection, parseItemBundle, paymentOnlyUpdate } from "./contextual-understanding";
+import { counterpartyRoleConflict, expectedAnswerFor, explicitQuantityCorrection, parseCounterpartyAnswer, parseDeadlineAnswer, parseExplicitCorrection, parseItemBundle, paymentOnlyUpdate } from "./contextual-understanding";
 import { extractCnpj } from "@/lib/domain/cnpj";
 import { calculateDocument } from "@/lib/domain/calculations";
 
@@ -20,10 +20,10 @@ function amountScopeLabels(description: string | null | undefined, quantity: num
   if (words.length === 1) return { unit: words[0].replace(/s$/i, "") || "unidade", total: quantity ? `dos ${quantity} ${words[0]}` : "do pedido" };
   return { unit: "unidade", total: quantity ? `dos ${quantity} itens` : "do pedido" };
 }
-function understoodCommercialData(entities: Record<string, CommercialEntity>, type: "quote" | "purchase_order") {
+function understoodCommercialData(entities: Record<string, CommercialEntity>, type: "quote" | "purchase_order", itemType?: AgentDraft["itemType"]) {
   const rows: string[] = [];
   if (entities.customer) rows.push(`${type === "purchase_order" ? "Fornecedor" : "Cliente"}: ${entities.customer.value}`);
-  if (entities.service) rows.push(`${type === "purchase_order" ? "Item" : "Serviço"}: ${entities.service.value}`);
+  if (entities.service) rows.push(`${itemType === "product" ? "Produto" : itemType === "service" ? "Serviço" : "Produto ou serviço"}: ${entities.service.value}`);
   if (entities.quantity) rows.push(`Quantidade: ${entities.quantity.value}`);
   if (typeof entities.price?.value === "number") rows.push(`Valor informado: ${understoodValue(entities.price.value)}`);
   if (entities.payment_terms) rows.push(`Pagamento: ${normalizePaymentTerms(String(entities.payment_terms.value))}`);
@@ -289,6 +289,15 @@ export async function runAgentTurn(ctx: AgentToolContext, input: AgentTurnInput)
         const suffix = roleConflict.name ? ` para “${roleConflict.name}”` : "";
         return { state: "collecting" as const, draft, documentId, reply: `Entendi que você mencionou um orçamento e um fornecedor${suffix}. Você quer criar um orçamento para um cliente ou um pedido de compra para esse fornecedor?`, provider: "context-role-clarification", documents, metrics, collection };
       }
+      if (expectedAnswer === "counterparty") {
+        const counterparty = parseCounterpartyAnswer(input.text);
+        if (counterparty) {
+          draft = agentDraftSchema.parse({ ...draft, counterpartyName: counterparty });
+          const source = { source: "user_current_message" as const, confidence: "high" as const, at: provenanceAt };
+          collection = { ...collection, party: undefined, summary: undefined, pendingField: undefined, expectedAnswer: undefined, provenance: { ...collection.provenance, counterparty: source } };
+          return advanceAfterScopedUpdate("context-counterparty");
+        }
+      }
       if (expectedAnswer === "correction" || collection.correctionRequested) {
         const correction = parseExplicitCorrection(input.text);
         if (!correction) return { state: "collecting" as const, draft, documentId, reply: "Não consegui identificar com segurança qual informação deve mudar. Diga o campo e o novo valor, por exemplo: ‘troca o pagamento para PIX’.", provider: "context-correction-clarification", documents, metrics, collection };
@@ -374,7 +383,7 @@ export async function runAgentTurn(ctx: AgentToolContext, input: AgentTurnInput)
         draft = agentDraftSchema.parse(applyEntitiesToAgentDraft(draft, entities, type));
         const valueAmbiguous = entities.value_scope?.value === "amount_scope_pending" || Boolean(entities.service && entities.quantity && entities.price && !entities.value_scope);
         collection = { ...collection, commercialInterpretation: { entities, pendingValueScope: valueAmbiguous || undefined }, hybrid: { ...collection.hybrid, lastIntent: type === "quote" ? "create_quote" : "create_purchase_order", recentEntities: entities } };
-        const understood = understoodCommercialData(entities, type);
+        const understood = understoodCommercialData(entities, type, draft.itemType);
         if (valueAmbiguous) { const labels=amountScopeLabels(String(entities.service.value),Number(entities.quantity.value)); return { state: "collecting" as const, draft, documentId, reply: `${understood}\n\nOs ${understoodValue(Number(entities.price.value))} correspondem a:\n\n1 — Valor de cada ${labels.unit}\n2 — Valor total ${labels.total}`, provider: "commercial-entities", documents, metrics, collection }; }
         collection = { ...collection, commercialInterpretation: undefined };
         const missing = locateMissingFields(draft);

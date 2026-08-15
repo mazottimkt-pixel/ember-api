@@ -164,4 +164,21 @@ describe("jornada completa pelo processor do WhatsApp",()=>{
     await processWhatsAppEvent(inbound("qual é o CNPJ da minha empresa?",3));
     const context=runtime.conversation?.context as {draft:Record<string,unknown>};expect(context.draft).toEqual(before);expect(runtime.conversation?.state).toBe("collecting");expect(lastText()).toContain("trabalho atual foi preservado");
   });
+  it("reproduz o transcript real e consolida contraparte, produto e prazo no processor",async()=>{
+    await processWhatsAppEvent(inbound("Olá",1));
+    await processWhatsAppEvent(inbound("Preciso fazer um orçamento para a Alfa de 20 lâmpadas a R$30 cada, prazo de 20 dias e pagamento no cartão em 2 vezes.",2));
+    const context=runtime.conversation?.context as {draft:Record<string,unknown>;collection:Record<string,unknown>};
+    expect(context.draft).toMatchObject({type:"quote",counterpartyName:"Alfa",itemType:"product",items:[{description:"Lâmpadas",quantity:20,unitPrice:30}],deadline:"20 dias",paymentTerms:"Cartão de crédito em 2 vezes",validity:null});
+    expect(lastText()).toContain("Produto: Lâmpadas");expect(lastText()).not.toContain("Serviço: Lâmpadas");expect(lastText()).not.toContain("Qual é o nome ou a razão social");expect(lastText()).toMatch(/válid/i);
+  });
+  it("consome resposta curta de contraparte antes do provider amplo e não repete o prompt",async()=>{
+    runtime.conversation={id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",state:"collecting",context:{draft:{type:"quote",counterpartyName:null,items:[],shipping:0,validity:null,deadline:null,paymentTerms:null,deliveryAddress:null,notes:null,documentQuery:null,quotedAmount:null,amountScope:null,quotedQuantity:null,quotedItemDescription:null,totalPrice:null,itemType:null,paymentDetails:null},collection:{pendingField:"cliente",expectedAnswer:"counterparty"}}};
+    await processWhatsAppEvent(inbound("Alfa Ltda",1));const context=runtime.conversation.context as {draft:{counterpartyName:string};collection:{expectedAnswer?:string}};
+    expect(context.draft.counterpartyName).toBe("Alfa Ltda");expect(context.collection.expectedAnswer).not.toBe("counterparty");expect(lastText()).toContain("produto ou serviço");expect(lastText()).not.toContain("nome ou a razão social");
+  });
+  it("permite troca de intenção enquanto aguarda contraparte",async()=>{
+    runtime.conversation={id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",state:"collecting",context:{draft:{type:"quote",counterpartyName:null,items:[],shipping:0,validity:null,deadline:null,paymentTerms:null,deliveryAddress:null,notes:null,documentQuery:null,quotedAmount:null,amountScope:null,quotedQuantity:null,quotedItemDescription:null,totalPrice:null,itemType:null,paymentDetails:null},collection:{pendingField:"cliente",expectedAnswer:"counterparty"}}};
+    await processWhatsAppEvent(inbound("esquece isso, quero fazer um pedido de compra",1));const context=runtime.conversation.context as {draft:{counterpartyName:null;type:string};collection:{pendingIntentSwitch?:{from:string;to:string}}};
+    expect(context.draft).toMatchObject({type:"quote",counterpartyName:null});expect(context.collection.pendingIntentSwitch).toEqual(expect.objectContaining({from:"quote",to:"purchase_order"}));expect(lastText()).toContain("começar um pedido");
+  });
 });
