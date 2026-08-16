@@ -1,0 +1,6 @@
+import { boundActionV2Schema, type BoundActionV2 } from "./contracts";
+import type { ConversationStateV2 } from "./schema";
+
+export function encodeBoundActionV2(action:BoundActionV2){return `v2:${action.interactionId}:${action.taskId}:${action.revision}:${action.actionId}`;}
+export function decodeBoundActionV2(raw:string):BoundActionV2|undefined{const [prefix,interactionId,taskId,revision,actionId]=raw.split(":");const parsed=boundActionV2Schema.safeParse({version:2,interactionId,taskId,revision:Number(revision),actionId});return prefix==="v2"&&parsed.success?parsed.data:undefined;}
+export function validateBoundActionV2(state:ConversationStateV2,action:BoundActionV2){const interaction=state.interaction;if(!interaction||interaction.status!=="active")return{valid:false as const,reason:"NO_ACTIVE_INTERACTION"};if(action.interactionId!==interaction.id)return{valid:false as const,reason:"STALE_INTERACTION"};if(action.taskId!==state.activeTask.id||action.taskId!==interaction.taskId)return{valid:false as const,reason:"TASK_MISMATCH"};if(action.revision!==state.revision||action.revision!==interaction.revision)return{valid:false as const,reason:"STALE_REVISION"};if(!interaction.allowedActions.includes(action.actionId))return{valid:false as const,reason:"ACTION_NOT_ALLOWED"};return{valid:true as const};}

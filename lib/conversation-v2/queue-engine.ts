@@ -1,0 +1,23 @@
+import {createHash,randomUUID} from "node:crypto";
+import {CONVERSATION_V2_CAS_MAX_RETRIES,CONVERSATION_V2_LEASE_MS,CONVERSATION_V2_ORDERING_GRACE_MS,assertMonotonicTransition,type ConversationQueueStoreV2,type QueueJobV2,type QueueTelemetryV2,type QueueTransitionV2} from "./queue-contracts";
+
+const mask=(id:string)=>id.length<9?"***":`${id.slice(0,4)}…${id.slice(-4)}`;
+const hash=(key:string)=>createHash("sha256").update(key).digest("hex").slice(0,16);
+export type CrashPointV2="after_claim"|"after_load"|"after_reduce"|"after_persist"|"after_complete";
+
+export class ConversationQueueEngineV2{
+  constructor(private readonly store:ConversationQueueStoreV2,private readonly options:{leaseMs?:number;graceMs?:number;casMaxRetries?:number;clock?:()=>Date;ownerToken?:()=>string;onTelemetry?:(value:QueueTelemetryV2)=>void}={}){}
+  private now(){return (this.options.clock?.()??new Date()).toISOString();}
+  async enqueue(input:{id?:string;organizationId:string;conversationKey:string;externalMessageId:string;receivedAt:string;createdAt?:string;payload:unknown}){const now=this.now();return this.store.enqueue({id:input.id??randomUUID(),organizationId:input.organizationId,conversationKey:input.conversationKey,externalMessageId:input.externalMessageId,receivedAt:input.receivedAt,createdAt:input.createdAt??now,payload:input.payload},this.options.graceMs??CONVERSATION_V2_ORDERING_GRACE_MS);}
+  async recover(){return this.store.recover(this.now());}
+  async drainAvailable(transition:QueueTransitionV2){await this.recover();const keys=await this.store.listConversationKeysWithWork(this.now());return Promise.all(keys.map(key=>this.drainConversation(key,transition)));}
+  async drainConversation(conversationKey:string,transition:QueueTransitionV2,crashAt?:CrashPointV2){const owner=this.options.ownerToken?.()??randomUUID(),started=Date.now(),leaseMs=this.options.leaseMs??CONVERSATION_V2_LEASE_MS;if(!await this.store.acquireLease(conversationKey,owner,this.now(),leaseMs))return{status:"locked" as const,processed:0};let processed=0;
+    try{for(;;){const job=await this.store.claimNext(conversationKey,owner,this.now());if(!job)break;if(crashAt==="after_claim")throw new Error("SIMULATED_CRASH_AFTER_CLAIM");let conflicts=0;
+        for(let retry=0;retry<(this.options.casMaxRetries??CONVERSATION_V2_CAS_MAX_RETRIES);retry++){const before=await this.store.loadState(conversationKey);if(crashAt==="after_load")throw new Error("SIMULATED_CRASH_AFTER_LOAD");if(before.lastProcessedEvent?.externalMessageId===job.externalMessageId){const duplicate={...before};const committed=await this.store.commitTransition({conversationKey,ownerToken:owner,jobId:job.id,expectedRevision:before.revision,nextState:duplicate,now:this.now()});if(committed==="committed"||committed==="already_completed"){processed++;break;}continue;}
+          const after=await transition(before,job);assertMonotonicTransition(before,after,job.externalMessageId);if(crashAt==="after_reduce")throw new Error("SIMULATED_CRASH_AFTER_REDUCE");const result=await this.store.commitTransition({conversationKey,ownerToken:owner,jobId:job.id,expectedRevision:before.revision,nextState:after,now:this.now()});if(result==="committed"){if(crashAt==="after_persist")throw new Error("SIMULATED_CRASH_AFTER_PERSIST");processed++;if(crashAt==="after_complete")throw new Error("SIMULATED_CRASH_AFTER_COMPLETE");this.options.onTelemetry?.({conversationKeyHash:hash(conversationKey),externalMessageIdMasked:mask(job.externalMessageId),jobId:job.id,receivedAt:job.receivedAt,processingStartedAt:job.processingStartedAt,revisionBefore:before.revision,revisionAfter:after.revision,casConflict:conflicts>0,retryAttempt:retry,lockWaitMs:0,processingDurationMs:Date.now()-started,finalStatus:"completed"});break;}if(result==="already_completed"){processed++;break;}if(result==="lease_lost")throw new Error("CONVERSATION_LEASE_LOST");conflicts++;if(retry+1>=(this.options.casMaxRetries??CONVERSATION_V2_CAS_MAX_RETRIES)){await this.store.defer(job.id,owner,new Date(Date.parse(this.now())+250).toISOString(),"CAS_RETRY_EXHAUSTED");break;}}
+        if(!await this.store.renewLease(conversationKey,owner,this.now(),leaseMs))throw new Error("CONVERSATION_LEASE_LOST");}
+      return{status:"drained" as const,processed};
+    }finally{await this.store.releaseLease(conversationKey,owner);}}
+}
+
+export function nextCursorState<T extends {revision:number;lastProcessedEvent:unknown;metadata:{updatedAt:string}}>(state:T,job:QueueJobV2,processedAt:string):T{return{...state,revision:state.revision+1,lastProcessedEvent:{externalMessageId:job.externalMessageId,receivedAt:job.receivedAt,processedAt,stateRevision:state.revision+1},metadata:{...state.metadata,updatedAt:processedAt}};}

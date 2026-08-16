@@ -65,6 +65,8 @@ import { processAgentV1Turn } from "@/lib/agent-v1/processor";
 import { createAgentV1RealTools } from "@/lib/agent-v1/real-tools";
 import { applyConversationExperience } from "@/lib/conversation/experience";
 import { classifyIntentTransition, cleanDraftForIntent, switchLabels, type PendingIntentSwitch } from "@/lib/conversation/intent-transition";
+import { runConversationV2Shadow } from "@/lib/conversation-v2/shadow";
+import { persistConversationV2ShadowTurn } from "@/lib/conversation-v2/persistent-shadow";
 
 const promptActionIds = new Set(["show_main","show_commercial","show_operations","show_finance","show_content","show_management","talk_to_lume","create_quote","create_purchase_order","search_document","confirm","correct","cancel","emit_default_document","customize_documents_now","use_default_document_style","configure_documents_later","continue_without_logo","cancel_branding_setup","template_essential","template_executive","template_contemporary","template_commercial","approve_document_branding","adjust_document_branding"]);
 const navigationActionIds = new Set(["show_main","show_commercial","show_operations","show_finance","show_content","show_management","talk_to_lume","create_quote","create_purchase_order","search_document","search_operations","query_confirmed_values","search_purchase_orders","query_documents_attention","query_customers","query_suppliers","query_catalog","query_documents","query_management_summary","choose_operations_period","search_operations_7d","search_operations_30d","search_operations_month","back","cancel"]);
@@ -585,6 +587,13 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
       now: new Date(message.receivedAt),
     });
     result={...result,reply:experienced.reply,collection:experienced.collection};
+    if(process.env.LUME_CONVERSATION_V2_SHADOW==="true"){
+      try{
+        const shadow=runConversationV2Shadow({organizationId:message.organizationId,conversationKey:contactKey,legacyState:state,legacyContext:context,inbound:{text,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt},legacyResult:{state:result.state,draft:result.draft,collection:result.collection,documentId:result.documentId}});
+        console.info("conversation.v2.shadow",{classification:shadow.classification,conflicts:shadow.conflicts,legacy:shadow.legacy,v2:shadow.v2,divergences:shadow.divergences,sideEffects:shadow.sideEffects});
+        if(process.env.LUME_CONVERSATION_V2_PERSIST_SHADOW==="true")await persistConversationV2ShadowTurn({admin,organizationId:message.organizationId,conversationId:conversation.id,conversationKey:contactKey,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt,text,legacyState:state,legacyContext:context});
+      }catch(error){console.warn("conversation.v2.shadow.failed",{code:error instanceof Error?error.message:"UNKNOWN"});}
+    }
     conversationState = result.state;
     await admin
       .from("conversations")
