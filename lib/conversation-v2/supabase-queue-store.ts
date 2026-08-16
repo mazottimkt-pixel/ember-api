@@ -82,6 +82,8 @@ export class SupabaseConversationQueueStoreV2 implements ConversationQueueStoreV
         kind: "text",
         normalized_payload: input.payload,
         processing_status: "received",
+        v2_eligible: true,
+        v2_eligible_at: new Date().toISOString(),
         received_at: input.receivedAt,
         conversation_key: input.conversationKey,
         queue_status: "received",
@@ -251,6 +253,8 @@ export class SupabaseConversationQueueStoreV2 implements ConversationQueueStoreV
         "deferred",
         "failed_recoverable",
       ])
+      .eq("v2_eligible", true)
+      .not("conversation_id", "is", null)
       .lte("available_at", now)
       .not("conversation_key", "is", null);
     if (error) throw new Error("V2_JOB_LIST_FAILED");

@@ -105,9 +105,11 @@ async function deliverWithRetry(
 }
 
 async function claim(admin: SupabaseClient, message: NormalizedInbound) {
+  const jobId = crypto.randomUUID();
   const { error } = await admin
     .from("channel_message_jobs")
     .insert({
+      id: jobId,
       organization_id: message.organizationId,
       channel: message.channel,
       external_message_id: message.externalMessageId,
@@ -116,9 +118,12 @@ async function claim(admin: SupabaseClient, message: NormalizedInbound) {
       normalized_payload: message,
       processing_status: "received",
       received_at: message.receivedAt,
+      legacy_queue_status: message.kind === "status" ? "completed" : "received",
+      legacy_available_at: message.receivedAt,
+      v2_eligible: false,
     });
-  if (!error) return true;
-  if (error.code === "23505") return false;
+  if (!error) return jobId;
+  if (error?.code === "23505") return undefined;
   throw new Error("CHANNEL_JOB_CLAIM_FAILED");
 }
 
@@ -132,6 +137,14 @@ async function updateJob(
     .from("channel_message_jobs")
     .update({
       processing_status: status,
+      legacy_queue_status:
+        status === "responded"
+          ? "completed"
+          : status === "failed"
+            ? "failed_terminal"
+            : "processing",
+      legacy_owner_token: status === "processing" ? undefined : null,
+      legacy_lease_expires_at: status === "processing" ? undefined : null,
       error_code: errorCode ?? null,
       processed_at: status === "processing" ? null : new Date().toISOString(),
     })
@@ -140,7 +153,10 @@ async function updateJob(
     .eq("organization_id", message.organizationId);
 }
 
-export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
+export async function processWhatsAppEvent(
+  event: ParsedWhatsAppEvent,
+  options: { existingJobId?: string } = {},
+) {
   const admin = createSupabaseAdminClient();
   const { data: channel } = await admin
     .from("whatsapp_channels")
@@ -165,7 +181,8 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     organizationId: channel.organization_id,
     actorId: member.user_id,
   });
-  if (!(await claim(admin, message))) return { duplicate: true as const };
+  const jobId = options.existingJobId ?? (await claim(admin, message));
+  if (!jobId) return { duplicate: true as const };
   if (message.kind === "status") {
     const target = String(message.metadata.targetMessageId ?? "");
     const next = message.metadata.status as WhatsAppStatus | undefined;
@@ -210,12 +227,19 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     return { ignored: "RECIPIENT_NOT_ALLOWED" as const };
   }
   const lockKey = `${message.organizationId}:${message.externalConversationId}`;
-  const { data: locked } = await admin.rpc("acquire_channel_lock", {
-    p_lock_key: lockKey,
-    p_organization_id: message.organizationId,
-    p_lease_seconds: 60,
-  });
-  if (!locked) return { deferred: true as const };
+  const legacyOwner = crypto.randomUUID();
+  const { data: locked, error: lockError } = await admin.rpc(
+    "claim_channel_job_legacy",
+    {
+      p_job_id: jobId,
+      p_lock_key: lockKey,
+      p_organization_id: message.organizationId,
+      p_owner_token: legacyOwner,
+      p_lease_seconds: 60,
+    },
+  );
+  if (lockError) throw new Error("LEGACY_QUEUE_CLAIM_FAILED");
+  if (!locked) return { deferred: true as const, persisted: true as const };
   let deliveredCount = 0;
   let processingMessageSent = false;
   let conversationState: AgentState | undefined;
@@ -590,7 +614,7 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     if(process.env.LUME_CONVERSATION_V2_SHADOW==="true"){
       try{
         const shadow=runConversationV2Shadow({organizationId:message.organizationId,conversationKey:contactKey,legacyState:state,legacyContext:context,inbound:{text,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt},legacyResult:{state:result.state,draft:result.draft,collection:result.collection,documentId:result.documentId}});
-        console.info("conversation.v2.shadow",{classification:shadow.classification,conflicts:shadow.conflicts,legacy:shadow.legacy,v2:shadow.v2,divergences:shadow.divergences,sideEffects:shadow.sideEffects});
+        console.info("conversation.v2.shadow",{classification:shadow.classification,conflicts:shadow.conflicts,legacy:shadow.legacy,v2:shadow.v2,divergences:shadow.divergences,oracle:shadow.oracle,sideEffects:shadow.sideEffects});
         if(process.env.LUME_CONVERSATION_V2_PERSIST_SHADOW==="true")await persistConversationV2ShadowTurn({admin,organizationId:message.organizationId,conversationId:conversation.id,conversationKey:contactKey,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt,text,legacyState:state,legacyContext:context});
       }catch(error){console.warn("conversation.v2.shadow.failed",{code:error instanceof Error?error.message:"UNKNOWN"});}
     }
@@ -780,9 +804,11 @@ export async function processWhatsAppEvent(event: ParsedWhatsAppEvent) {
     });
     return { failed: true as const };
   } finally {
-    await admin.rpc("release_channel_lock", {
+    await admin.rpc("release_channel_job_legacy", {
+      p_job_id: jobId,
       p_lock_key: lockKey,
       p_organization_id: message.organizationId,
+      p_owner_token: legacyOwner,
     });
   }
 }

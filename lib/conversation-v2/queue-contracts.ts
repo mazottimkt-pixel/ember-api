@@ -30,5 +30,7 @@ export interface ConversationQueueStoreV2{
 export function assertMonotonicTransition(before:ConversationStateV2,after:ConversationStateV2,externalMessageId:string){
   conversationStateV2Schema.parse(after);
   if(after.revision<before.revision)throw new Error("CONVERSATION_REVISION_REGRESSION");
+  const semantic=(state:ConversationStateV2)=>JSON.stringify({...state,revision:0,lastProcessedEvent:null,metadata:{...state.metadata,updatedAt:""}});
+  if(semantic(before)!==semantic(after)&&after.revision!==before.revision+1)throw new Error("CONVERSATION_REVISION_NOT_MONOTONIC");
   if(after.lastProcessedEvent?.externalMessageId!==externalMessageId)throw new Error("EVENT_CURSOR_MISMATCH");
 }

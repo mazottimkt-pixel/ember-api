@@ -60,6 +60,29 @@ export function transitionQueuedInboundV2(
             baseRevision: state.revision,
             operations: [],
           });
-  return reduceConversationV2(state, event, understood.interpretation, patch)
-    .nextState;
+  const transition = reduceConversationV2(
+    state,
+    event,
+    understood.interpretation,
+    patch,
+  );
+  if (
+    transition.nextState.revision === state.revision &&
+    !["NOOP", "CLARIFY_REJECTED_PATCH", "STALE_INTERACTION"].includes(
+      transition.nextAction,
+    )
+  ) {
+    const revision = state.revision + 1;
+    return {
+      ...transition.nextState,
+      revision,
+      interaction: transition.nextState.interaction
+        ? { ...transition.nextState.interaction, revision }
+        : null,
+      lastProcessedEvent: transition.nextState.lastProcessedEvent
+        ? { ...transition.nextState.lastProcessedEvent, stateRevision: revision }
+        : null,
+    };
+  }
+  return transition.nextState;
 }
