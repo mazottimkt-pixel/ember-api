@@ -1,9 +1,13 @@
+import { createHash } from "node:crypto";
 import { conversationEventV2Schema, statePatchV2Schema } from "./contracts";
 import { interpretInboundV2 } from "./interpreter";
 import { mapLegacyConversationToV2 } from "./legacy-mapper";
-import { classifyShadowWithOracle, type ShadowOracleTelemetry } from "./oracle";
+import { classifyConversationalQuality, classifyShadowWithOracle, type ConversationalOracleTelemetry, type ShadowOracleTelemetry } from "./oracle";
 import { reduceConversationV2 } from "./reducer";
 const NO_SIDE_EFFECTS={sideEffects:false as const};
+const redact=(value:string)=>value.replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g,"<EMAIL>").replace(/\b\d{11,14}\b/g,"<ID>").replace(/\+?\d[\d\s().-]{9,}\d/g,"<PHONE>").slice(0,2000);
+const safeUnknown=(value:unknown):unknown=>typeof value==="string"?redact(value):Array.isArray(value)?value.map(safeUnknown):value&&typeof value==="object"?Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,safeUnknown(item)])):value;
+const stateSummary=(state:import("./schema").ConversationStateV2)=>({revision:state.revision,taskType:state.activeTask.type,taskStatus:state.activeTask.status,expectedInput:state.interaction?.expectedInput??null,interactionType:state.interaction?.type??null,presentFields:{party:Boolean(state.draft.party),items:state.draft.items.length,payment:Boolean(state.draft.payment),deadline:Boolean(state.draft.deadline),validity:Boolean(state.draft.validity),address:Boolean(state.draft.address)},effects:state.effects});
 
 export type ConversationV2ShadowAudit = {
   classification: string;
@@ -13,6 +17,8 @@ export type ConversationV2ShadowAudit = {
   divergences: string[];
   sideEffects: false;
   oracle: ShadowOracleTelemetry;
+  conversationalOracle: ConversationalOracleTelemetry;
+  evidence: Record<string, unknown>;
 };
 
 export function runConversationV2Shadow(input: {
@@ -22,7 +28,7 @@ export function runConversationV2Shadow(input: {
   legacyState: string;
   legacyContext: unknown;
   inbound: { text: string; externalMessageId: string; receivedAt: string };
-  legacyResult: { state: string; draft?: { type?: string | null }; collection?: { activeTask?: { type?: string; nextAction?: string } }; documentId?: string };
+  legacyResult: { state: string; reply?: string; draft?: { type?: string | null }; collection?: { activeTask?: { type?: string; nextAction?: string }; expectedAnswer?: string }; documentId?: string };
   catalogExpected?: { intent?: string; nextAction?: string };
 }): ConversationV2ShadowAudit {
   const mapped = mapLegacyConversationToV2({
@@ -35,6 +41,7 @@ export function runConversationV2Shadow(input: {
   });
   const legacyIntent = input.legacyResult.draft?.type ?? input.legacyResult.collection?.activeTask?.type ?? null;
   const legacyNextAction = input.legacyResult.collection?.activeTask?.nextAction ?? null;
+  const conversationalOracle=classifyConversationalQuality({userMessage:input.inbound.text,visibleReply:input.legacyResult.reply??null,stateBefore:input.legacyState,stateAfter:input.legacyResult.state,expectedInputBefore:mapped.state?.interaction?.expectedInput??null,expectedInputAfter:input.legacyResult.collection?.expectedAnswer??null});
   if (!mapped.state) {
     const oracle = classifyShadowWithOracle({
       legacy: { intent: legacyIntent, stateBefore: input.legacyState, stateAfter: input.legacyResult.state, nextAction: legacyNextAction },
@@ -50,6 +57,8 @@ export function runConversationV2Shadow(input: {
       divergences: ["V2_MAPPING_FAILED"],
       ...NO_SIDE_EFFECTS,
       oracle,
+      conversationalOracle,
+      evidence:{maskedEventId:`…${input.inbound.externalMessageId.slice(-8)}`,conversationKeyHash:awaitlessHash(input.conversationKey),taskType:legacyIntent??"unknown",userMessage:redact(input.inbound.text),legacyVisibleReply:redact(input.legacyResult.reply??""),legacyStateBefore:input.legacyState,legacyStateAfter:input.legacyResult.state,legacyNextAction, v2Interpretation:null,v2StatePatch:null,v2StateBefore:null,v2StateAfter:null,v2Interaction:null,v2NextAction:"NONE",structuralClassification:mapped.classification,conversationalClassification:conversationalOracle.category,conversationalReason:conversationalOracle.reason},
     };
   }
   const stateBefore = mapped.state;
@@ -90,5 +99,9 @@ export function runConversationV2Shadow(input: {
     divergences,
     ...NO_SIDE_EFFECTS,
     oracle,
+    conversationalOracle,
+    evidence:{maskedEventId:`…${input.inbound.externalMessageId.slice(-8)}`,conversationKeyHash:awaitlessHash(input.conversationKey),taskType:state.activeTask.type,userMessage:redact(input.inbound.text),legacyVisibleReply:redact(input.legacyResult.reply??""),legacyStateBefore:input.legacyState,legacyStateAfter:input.legacyResult.state,legacyNextAction,v2Interpretation:safeUnknown(understood.interpretation),v2StatePatch:safeUnknown(understood.patch),v2StateBefore:stateSummary(stateBefore),v2StateAfter:stateSummary(state),v2Interaction:safeUnknown(state.interaction),v2NextAction:transition.nextAction,structuralClassification:mapped.classification,conversationalClassification:conversationalOracle.category,conversationalReason:conversationalOracle.reason},
   };
 }
+
+function awaitlessHash(value:string){return createHash("sha256").update(value).digest("hex").slice(0,16);}

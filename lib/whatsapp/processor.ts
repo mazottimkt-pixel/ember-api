@@ -612,11 +612,22 @@ export async function processWhatsAppEvent(
     });
     result={...result,reply:experienced.reply,collection:experienced.collection};
     if(process.env.LUME_CONVERSATION_V2_SHADOW==="true"){
+      const shadowCorrelation={organizationId:message.organizationId,externalMessageId:message.externalMessageId,conversationId:conversation.id};
       try{
-        const shadow=runConversationV2Shadow({organizationId:message.organizationId,conversationKey:contactKey,legacyState:state,legacyContext:context,inbound:{text,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt},legacyResult:{state:result.state,draft:result.draft,collection:result.collection,documentId:result.documentId}});
-        console.info("conversation.v2.shadow",{classification:shadow.classification,conflicts:shadow.conflicts,legacy:shadow.legacy,v2:shadow.v2,divergences:shadow.divergences,oracle:shadow.oracle,sideEffects:shadow.sideEffects});
-        if(process.env.LUME_CONVERSATION_V2_PERSIST_SHADOW==="true")await persistConversationV2ShadowTurn({admin,organizationId:message.organizationId,conversationId:conversation.id,conversationKey:contactKey,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt,text,legacyState:state,legacyContext:context});
-      }catch(error){console.warn("conversation.v2.shadow.failed",{code:error instanceof Error?error.message:"UNKNOWN"});}
+        const {recordShadowAttempt,recordShadowOutcome}=await import("@/lib/conversation-v2/shadow-telemetry");
+        await recordShadowAttempt(admin,shadowCorrelation);
+        const shadow=runConversationV2Shadow({organizationId:message.organizationId,conversationKey:contactKey,legacyState:state,legacyContext:context,inbound:{text,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt},legacyResult:{state:result.state,reply:result.reply,draft:result.draft,collection:result.collection,documentId:result.documentId}});
+        console.info("conversation.v2.shadow",{externalMessageId:`…${message.externalMessageId.slice(-8)}`,classification:shadow.classification,conflicts:shadow.conflicts,legacy:shadow.legacy,v2:shadow.v2,divergences:shadow.divergences,oracle:shadow.oracle,conversationalOracle:shadow.conversationalOracle,sideEffects:shadow.sideEffects});
+        const persisted=process.env.LUME_CONVERSATION_V2_PERSIST_SHADOW==="true"?await persistConversationV2ShadowTurn({admin,organizationId:message.organizationId,conversationId:conversation.id,conversationKey:contactKey,externalMessageId:message.externalMessageId,receivedAt:message.receivedAt,text,legacyState:state,legacyContext:context}):undefined;
+        const shadowOutcome=persisted?.status==="mapping_failed"?"REJECTED_WITH_REASON":persisted?.status==="locked"?"DEFERRED":"PROCESSED";
+        const shadowCode=persisted?.status==="mapping_failed"?"V2_MAPPING_FAILED":persisted?.status==="locked"?"V2_CONVERSATION_LOCKED":shadow.classification;
+        await recordShadowOutcome(admin,shadowCorrelation,shadowOutcome,shadowCode,shadow.evidence);
+      }catch(error){
+        const {recordShadowOutcome,shadowOutcomeForError}=await import("@/lib/conversation-v2/shadow-telemetry");
+        const failure=shadowOutcomeForError(error);
+        try{await recordShadowOutcome(admin,shadowCorrelation,failure.outcome,failure.code);}catch(telemetryError){console.error("conversation.v2.shadow.telemetry.failed",{externalMessageId:`…${message.externalMessageId.slice(-8)}`,code:telemetryError instanceof Error?telemetryError.message:"UNKNOWN"});}
+        console.warn("conversation.v2.shadow.failed",{externalMessageId:`…${message.externalMessageId.slice(-8)}`,outcome:failure.outcome,code:failure.code});
+      }
     }
     conversationState = result.state;
     await admin

@@ -2,6 +2,13 @@ import type { AgentDraft } from "./contracts";
 import { isPaymentOnlyDescription, parsePaymentDetails } from "@/lib/domain/payment-terms";
 
 export type ExpectedAnswer = "document_type" | "counterparty" | "item_bundle" | "delivery_deadline" | "payment_terms" | "quote_validity" | "address" | "confirmation" | "price_scope" | "document_selection" | "correction";
+const EXPECTED_ANSWER_BY_FIELD: Readonly<Record<string, ExpectedAnswer>> = {
+  document_type:"document_type", "tipo de documento":"document_type", counterparty:"counterparty", cliente:"counterparty", fornecedor:"counterparty",
+  item_bundle:"item_bundle", itens:"item_bundle", delivery_deadline:"delivery_deadline", prazo:"delivery_deadline",
+  payment_terms:"payment_terms", "condição de pagamento":"payment_terms", quote_validity:"quote_validity", validade:"quote_validity",
+  address:"address", "endereço de entrega":"address", confirmation:"confirmation", confirmação:"confirmation",
+  price_scope:"price_scope", document_selection:"document_selection", correction:"correction", correção:"correction",
+};
 export type EntityProvenance = { source: "user_current_message" | "user_previous_message" | "organization_profile" | "registered_contact" | "previous_document" | "vault_document" | "external_lookup" | "derived_calculation" | "inference"; confidence: "high" | "medium" | "low"; at: string };
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
 const numberWords: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, vinte: 20, trinta: 30 };
@@ -9,7 +16,7 @@ const number = (raw: string) => Number(raw.replace(",", ".")) || numberWords[nor
 
 export function expectedAnswerFor(draft: AgentDraft, pendingField?: string): ExpectedAnswer | undefined {
   const field = pendingField ?? (!draft.counterpartyName ? (draft.type ? "counterparty" : undefined) : !draft.items.length ? "item_bundle" : !draft.deadline ? "delivery_deadline" : !draft.paymentTerms ? "payment_terms" : draft.type === "quote" && !draft.validity ? "quote_validity" : draft.type === "purchase_order" && !draft.deliveryAddress ? "address" : undefined);
-  return field === "cliente" || field === "fornecedor" ? "counterparty" : field === "itens" ? "item_bundle" : field === "prazo" ? "delivery_deadline" : field === "condição de pagamento" ? "payment_terms" : field === "validade" ? "quote_validity" : field === "endereço de entrega" ? "address" : field === "correção" ? "correction" : field as ExpectedAnswer | undefined;
+  return field ? EXPECTED_ANSWER_BY_FIELD[field] : undefined;
 }
 
 export function parseItemBundle(text: string) {
